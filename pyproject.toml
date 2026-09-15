@@ -1,0 +1,35 @@
+[project]
+name = "ai-skin-specialist"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "deepgram-sdk>=7.4.0",
+    "fastapi>=0.115.0",
+    "google-genai>=1.67.0",
+    "pillow>=12.3.0",
+    "langchain-core>=0.3",
+    "tavily-python>=0.3.2",
+    "beautifulsoup4>=4.12.0",
+    "requests>=2.31.0",
+    "python-multipart>=0.0.20",
+    "python-dotenv>=1.2.2",
+    "uvicorn[standard]>=0.34.0",
+    "huggingface-hub>=0.28.0",
+    "slowapi>=0.1.10",
+    "reportlab>=4.0.0",
+]
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28.1",
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+    "pytest-mock>=3.15.1",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+addopts = "-ra"
