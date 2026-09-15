@@ -50,8 +50,9 @@ logger = logging.getLogger(__name__)
 
 ROOT_DIR = Path(__file__).resolve().parent
 FRONTEND_FILE = ROOT_DIR / "frontend" / "redesigned.html"
-AUDIO_DIR = ROOT_DIR / "generated_audio"
-AUDIO_DIR.mkdir(exist_ok=True)
+# Temporary fix for Vercel: serverless functions can only write inside /tmp.
+AUDIO_DIR = Path("/tmp/generated_audio")
+AUDIO_DIR.mkdir(parents=True, exist_ok=True)
 
 # Consultation-history / feedback store (SQLite, WAL). Created lazily so
 # importing the app in tests never fails on a read-only FS.

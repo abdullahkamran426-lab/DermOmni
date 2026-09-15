@@ -53,6 +53,7 @@ from __future__ import annotations
 import json
 import os
 import sqlite3
+import tempfile
 import threading
 from datetime import datetime, timezone
 from pathlib import Path
@@ -106,6 +107,9 @@ def get_db_path() -> Path:
     override = os.getenv("HISTORY_DB_PATH", "").strip()
     if override:
         return Path(override).expanduser().resolve()
+    # Serverless (Vercel) filesystems are read-only outside the temp dir.
+    if os.environ.get("VERCEL"):
+        return Path(tempfile.gettempdir()) / "consultations.db"
     root = Path(__file__).resolve().parent.parent
     return root / "data" / "consultations.db"
 
@@ -193,36 +197,6 @@ def archive_consultation_image(
         return stored
     except Exception:
         return ""
-
-
-def resolve_media_image(record: dict, *, db_path: Path | None = None) -> Path | None:
-    """Return the archived photo path for a consultation row, if usable."""
-    _ = db_path  # accepted for API symmetry; path stored is absolute.
-    candidate = (record or {}).get("media_image_path") or ""
-    if not candidate:
-        return None
-    path = Path(candidate)
-    try:
-        if path.is_file() and path.stat().st_size > 0:
-            return path
-    except OSError:
-        return None
-    return None
-
-
-def resolve_annotated_image(record: dict, *, db_path: Path | None = None) -> Path | None:
-    """Return the annotated overlay image path for a row, if usable."""
-    _ = db_path
-    candidate = (record or {}).get("annotated_image_path") or ""
-    if not candidate:
-        return None
-    path = Path(candidate)
-    try:
-        if path.is_file() and path.stat().st_size > 0:
-            return path
-    except OSError:
-        return None
-    return None
 
 
 def save_annotated_image_path(

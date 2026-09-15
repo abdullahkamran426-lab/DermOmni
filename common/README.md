@@ -135,7 +135,6 @@ Single entry point for vision payload prep. All Gemini/HF paths must call this.
 - `get_video_mime_type(ext)` — extension → MIME map.
 - `prepare_vision_media(path) -> (bytes, mime, "image"|"video")` — images: EXIF-correct, alpha-flatten to white, thumbnail, JPEG-encode; videos: raw bytes + MIME. Raises `VisionAnalysisError(invalid_media)`.
 - `encode_image_to_data_url(path, *, max_dimension, quality)` — base64 `data:image/jpeg` for HF chat-completion fallback. Rejects video with `invalid_media_type`.
-- `prepare_vision_image(path) -> (bytes, mime)` — legacy image-only wrapper (unused in prod, kept for compat).
 - `_prepare_image_bytes(...)` — internal PIL worker.
 
 Used by: `brain_of_the_doctor_gemini.py`, `Skin_research_tools.py`, `huggingface_vision.py`.
@@ -148,7 +147,7 @@ Pure function PDF export (ReportLab Platypus, no temp files, no global state).
 - `parse_report_sections(report) -> [(heading, body)]` — splits `VISUAL OBSERVATIONS / POTENTIAL CONDITIONS / RECOMMENDATIONS / WHEN TO SEE A DOCTOR`; falls back to `[("CLINICAL GUIDANCE", text)]` for consult outputs.
 - Styling: `SAGE #1F6F5C`, `AMBER #C98A2C`, A4, 18/18/16/20mm margins.
 
-Used by: `GET /api/history/{id}/export.pdf` in `main.py`. Photo lookup via `media_image_path` (same resolution logic as `history_store.resolve_media_image`).
+Used by: `GET /api/history/{id}/export.pdf` in `main.py`. Photo lookup via the row's `media_image_path` (skipped when missing or empty).
 
 ## Import Map (who uses what)
 

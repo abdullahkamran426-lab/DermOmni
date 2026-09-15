@@ -7,7 +7,6 @@ from pathlib import Path
 from typing import Any
 
 import requests
-from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 from google import genai
 from google.genai import types
@@ -367,18 +366,3 @@ def research_paper_search(query: str) -> str:
     search_query = f"{query} clinical study dermatology peer-reviewed"
     results = _retry_tavily_search(search_query, operation="research_papers", domains=PAPER_DOMAINS, max_results=5)
     return _format_search_results(results, paper=True)
-
-
-@tool
-def scrape_medical_url(url: str) -> str:
-    """Scrape and return clean body text from a medical or dermatology URL."""
-    try:
-        response = requests.get(url, timeout=10, headers={"User-Agent": "Mozilla/5.0 (research assistant)"})
-        response.raise_for_status()
-        soup = BeautifulSoup(response.text, "html.parser")
-        for tag in soup(["script", "style", "nav", "footer", "header", "aside"]):
-            tag.decompose()
-        return soup.get_text(separator=" ", strip=True)[:4_000]
-    except requests.RequestException as exc:
-        logger.warning("Medical URL scrape failed: %s", exc)
-        return f"Could not scrape URL: {exc}"
