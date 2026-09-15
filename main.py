@@ -49,7 +49,7 @@ logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
 logger = logging.getLogger(__name__)
 
 ROOT_DIR = Path(__file__).resolve().parent
-FRONTEND_FILE = ROOT_DIR / "frontend" / "code.html"
+FRONTEND_FILE = ROOT_DIR / "frontend" / "redesigned.html"
 AUDIO_DIR = ROOT_DIR / "generated_audio"
 AUDIO_DIR.mkdir(exist_ok=True)
 

@@ -1,0 +1,1272 @@
+<!DOCTYPE html>
+<html class="light" lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0, viewport-fit=cover" name="viewport"/>
+<meta name="description" content="DermOmni: a voice, image, and video-based skin consultation assistant, plus a grounded research assistant for skin-care questions."/>
+<meta name="theme-color" content="#1D6F5B"/>
+<meta name="color-scheme" content="light"/>
+<title>DermOmni | Clinical Consultation — Redesigned</title>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&amp;family=IBM+Plex+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+tailwind.config = {
+  darkMode: "class",
+  theme: {
+    extend: {
+      colors: {
+        ink: "#14201B",
+        muted: "#5C6660",
+        paper: "#F2F4EF",
+        paper2: "#FAFBF8",
+        surface: "#FFFFFF",
+        border: "#E2E4DB",
+        "border-strong": "#CBD0C2",
+        sage: "#1D6F5B",
+        "sage-dark": "#134E40",
+        "sage-soft": "#DFECE5",
+        "sage-hover": "#EAF3EE",
+        amber: "#B97A1A",
+        "amber-soft": "#F7E9CB",
+        clay: "#A23A28",
+        "clay-soft": "#F6DDD5"
+      },
+      fontFamily: {
+        display: ['"Fraunces"', "serif"],
+        sans: ['"IBM Plex Sans"', "sans-serif"]
+      },
+      borderRadius: { sm: "8px", DEFAULT: "12px", lg: "16px", xl: "20px", "2xl": "24px" },
+      boxShadow: {
+        card: "0 1px 2px rgba(20,32,27,.06), 0 8px 24px -12px rgba(20,32,27,.18)",
+        pop: "0 12px 40px -12px rgba(29,111,91,.35)",
+        dial: "0 10px 30px -8px rgba(29,111,91,.5)"
+      }
+    }
+  }
+};
+</script>
+<style>
+  :root{ --ink:#14201B; --sage:#1D6F5B; --sage-dark:#134E40; --border:#E2E4DB; --amber:#B97A1A; }
+  html{ scroll-behavior:smooth; }
+  body{ font-family:"IBM Plex Sans",sans-serif; -webkit-font-smoothing:antialiased; }
+  h1,h2,h3,.font-display{ font-family:"Fraunces",serif; }
+  .material-symbols-outlined{ font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24; }
+  *:focus-visible{ outline:2px solid var(--sage); outline-offset:3px; border-radius:6px; }
+  .safe-top{ padding-top:max(.75rem,env(safe-area-inset-top)); }
+  .safe-bottom{ padding-bottom:max(1rem,env(safe-area-inset-bottom)); }
+  .app-bg{
+    background:
+      radial-gradient(900px 420px at 15% -5%, rgba(29,111,91,.10), transparent 60%),
+      radial-gradient(800px 380px at 90% 0%, rgba(185,122,26,.08), transparent 60%),
+      linear-gradient(180deg,#F6F7F2 0%,#F2F4EF 40%,#EDF1EA 100%);
+  }
+  .glass{ backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px); }
+  .card{ background:#fff; border:1px solid var(--border); border-radius:20px; box-shadow:0 1px 2px rgba(20,32,27,.06),0 8px 24px -12px rgba(20,32,27,.18); }
+  .card-hover{ transition:transform .18s ease, box-shadow .18s ease, border-color .18s ease; }
+  .card-hover:hover{ transform:translateY(-2px); border-color:#1D6F5B; box-shadow:0 12px 32px -12px rgba(29,111,91,.30); }
+  .loupe-mark circle{ fill:none; stroke:currentColor; }
+  .frame-corners{ position:relative; }
+  .frame-corners .corner{ position:absolute; width:18px; height:18px; border-color:inherit; z-index:2; pointer-events:none; }
+  .frame-corners .corner-tl{ top:10px; left:10px; border-top:2.5px solid; border-left:2.5px solid; border-top-left-radius:8px; }
+  .frame-corners .corner-tr{ top:10px; right:10px; border-top:2.5px solid; border-right:2.5px solid; border-top-right-radius:8px; }
+  .frame-corners .corner-bl{ bottom:10px; left:10px; border-bottom:2.5px solid; border-left:2.5px solid; border-bottom-left-radius:8px; }
+  .frame-corners .corner-br{ bottom:10px; right:10px; border-bottom:2.5px solid; border-right:2.5px solid; border-bottom-right-radius:8px; }
+  .step-num{ font-family:"Fraunces",serif; font-weight:600; font-size:14px; width:30px; height:30px; display:flex; align-items:center; justify-content:center; border:1.5px solid var(--sage); color:var(--sage); border-radius:9999px; background:#fff; flex-shrink:0; box-shadow:0 1px 0 rgba(29,111,91,.15); }
+  .step-line{ width:2px; flex:1; min-height:22px; background:linear-gradient(180deg,var(--border),#D4DDD5); margin:6px 0; border-radius:2px; }
+  .mic-dial{ position:relative; width:96px; height:96px; }
+  .mic-dial .ring{ position:absolute; inset:0; border-radius:9999px; border:1.5px solid var(--border); transition:border-color .2s ease; background:#fff; }
+  .mic-dial.is-recording .ring{ border-color:var(--sage); box-shadow:0 0 0 6px rgba(29,111,91,.10); }
+  .mic-dial .pulse{ position:absolute; inset:0; border-radius:9999px; border:1.5px solid var(--sage); opacity:0; }
+  .mic-dial.is-recording .pulse{ animation:dial-pulse 1.8s ease-out infinite; }
+  @keyframes dial-pulse{ 0%{transform:scale(.72);opacity:.55;} 100%{transform:scale(1.25);opacity:0;} }
+  .waveform{ display:flex; align-items:flex-end; gap:3px; height:16px; }
+  .waveform span{ width:3px; background:#D3D8CF; border-radius:2px; height:5px; transition:background .2s ease; }
+  .mic-dial.is-recording ~ .waveform span{ background:var(--sage); animation:wave 1s ease-in-out infinite; }
+  .waveform span:nth-child(1){animation-delay:0s;} .waveform span:nth-child(2){animation-delay:.12s;}
+  .waveform span:nth-child(3){animation-delay:.24s;} .waveform span:nth-child(4){animation-delay:.36s;}
+  .waveform span:nth-child(5){animation-delay:.48s;} .waveform span:nth-child(6){animation-delay:.6s;} .waveform span:nth-child(7){animation-delay:.72s;}
+  @keyframes wave{ 0%,100%{height:5px;} 50%{height:16px;} }
+  .scan-sweep{ position:absolute; inset:0; overflow:hidden; pointer-events:none; border-radius:20px; }
+  .scan-sweep::before{ content:""; position:absolute; left:0; right:0; height:40%; background:linear-gradient(to bottom,transparent,rgba(29,111,91,.14),transparent); animation:sweep 1.8s ease-in-out; }
+  @keyframes sweep{ 0%{top:-40%;} 100%{top:100%;} }
+  .typing-dots{ display:inline-flex; gap:4px; align-items:center; padding:6px 2px; }
+  .typing-dots span{ width:7px; height:7px; border-radius:9999px; background:var(--sage); opacity:.35; animation:typing-bounce 1.2s ease-in-out infinite; }
+  .typing-dots span:nth-child(2){animation-delay:.15s;} .typing-dots span:nth-child(3){animation-delay:.3s;}
+  @keyframes typing-bounce{ 0%,60%,100%{transform:translateY(0);opacity:.35;} 30%{transform:translateY(-5px);opacity:1;} }
+  .toast-enter{ animation:toast-in .18s ease-out; }
+  @keyframes toast-in{ from{opacity:0;transform:translateY(6px);} to{opacity:1;transform:translateY(0);} }
+  .btn-primary{ background:linear-gradient(180deg,#237E67,#1D6F5B 60%,#185C4B); box-shadow:0 10px 24px -10px rgba(29,111,91,.55), inset 0 1px 0 rgba(255,255,255,.22); transition:transform .15s ease, filter .15s ease; }
+  .btn-primary:hover{ filter:brightness(1.05); transform:translateY(-1px); }
+  .btn-primary:active{ transform:translateY(0) scale(.99); }
+  .icon-tile{ width:44px; height:44px; border-radius:14px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  textarea, select{ transition:border-color .15s ease, box-shadow .15s ease; }
+  textarea:focus, select:focus{ border-color:#1D6F5B !important; box-shadow:0 0 0 3px rgba(29,111,91,.15) !important; outline:none; }
+  audio{ border-radius:12px; }
+  audio::-webkit-media-controls-panel{ background:#F2F4EF; }
+  @media (prefers-reduced-motion: reduce){
+    .mic-dial.is-recording .pulse,.scan-sweep::before,.typing-dots span,.waveform span,.toast-enter,.card-hover,.btn-primary{ animation:none !important; transition:none !important; }
+    html{ scroll-behavior:auto; }
+  }
+</style>
+</head>
+<body class="app-bg text-ink min-h-screen flex flex-col">
+
+<a class="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[60] focus:bg-sage focus:text-white focus:px-4 focus:py-2 focus:rounded-sm focus:text-[13px] focus:font-medium" href="#main-content">Skip to main content</a>
+
+<!-- ══════════ HEADER ══════════ -->
+<header class="sticky top-0 z-40 glass bg-white/85 border-b border-border safe-top">
+  <div class="max-w-6xl mx-auto px-4 sm:px-5 md:px-8 py-3 flex flex-wrap items-center justify-between gap-3">
+    <div class="flex items-center gap-3 min-w-0">
+      <span class="w-11 h-11 rounded-2xl bg-sage text-white flex items-center justify-center shadow-pop flex-shrink-0" aria-hidden="true">
+        <svg class="loupe-mark" height="24" viewBox="0 0 34 34" width="24"><circle cx="15" cy="15" r="9" stroke-width="2.4"></circle><circle cx="15" cy="15" r="4.5" stroke-width="1.4"></circle><line stroke="currentColor" stroke-linecap="round" stroke-width="2.4" x1="21.5" x2="27" y1="21.5" y2="27"></line></svg>
+      </span>
+      <div class="min-w-0">
+        <div class="flex items-center gap-2">
+          <h1 class="font-display text-[22px] leading-none font-semibold tracking-tight truncate">DermOmni</h1>
+          <span class="hidden sm:inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-sage-soft text-sage-dark border border-sage/20"><span class="w-1.5 h-1.5 rounded-full bg-sage animate-pulse" aria-hidden="true"></span>Clinical AI</span>
+        </div>
+        <p class="text-[13px] text-muted mt-1 hidden sm:block">Voice, image, and video-based skin consultation</p>
+      </div>
+    </div>
+    <div class="flex items-center gap-2 flex-wrap">
+      <div class="flex items-center gap-1 p-1 rounded-xl bg-paper border border-border" id="mode-tablist" role="tablist" aria-label="Switch view">
+        <button aria-controls="consultation-view" aria-selected="true" class="px-4 py-2 text-[13px] font-semibold rounded-lg bg-sage text-white shadow-sm transition-all" id="consultation-tab" role="tab" tabindex="0" type="button">Consultation</button>
+        <button aria-controls="research-view" aria-selected="false" class="px-4 py-2 text-[13px] font-semibold rounded-lg border border-transparent text-muted hover:text-ink hover:bg-white transition-all" id="research-tab" role="tab" tabindex="-1" type="button">Research</button>
+        <button aria-controls="chat-view" aria-selected="false" class="px-4 py-2 text-[13px] font-semibold rounded-lg border border-transparent text-muted hover:text-ink hover:bg-white transition-all" id="chat-tab" role="tab" tabindex="-1" type="button">Chat</button>
+      </div>
+    </div>
+  </div>
+  <!-- progress / trust strip -->
+  <div class="border-t border-border/70 bg-paper2/70">
+    <div class="max-w-6xl mx-auto px-4 sm:px-5 md:px-8 py-2 flex items-center gap-4 text-[12px] text-muted overflow-x-auto whitespace-nowrap">
+      <span class="flex items-center gap-1.5"><span aria-hidden="true" class="material-symbols-outlined text-sage" style="font-size:15px">lock</span>Private by design</span>
+      <span aria-hidden="true" class="w-1 h-1 rounded-full bg-border-strong flex-shrink-0"></span>
+      <span class="flex items-center gap-1.5"><span aria-hidden="true" class="material-symbols-outlined text-sage" style="font-size:15px">verified</span>Evidence-grounded</span>
+      <span aria-hidden="true" class="w-1 h-1 rounded-full bg-border-strong flex-shrink-0"></span>
+      <span class="flex items-center gap-1.5"><span aria-hidden="true" class="material-symbols-outlined text-sage" style="font-size:15px">mic</span>Voice + photo + video</span>
+    </div>
+  </div>
+</header>
+
+<main class="flex-grow w-full max-w-6xl mx-auto px-4 sm:px-5 md:px-8 py-8 md:py-12" id="main-content" tabindex="-1">
+
+  <!-- Page intro -->
+  <div class="mb-8 md:mb-10 max-w-3xl">
+    <p class="text-[12px] font-semibold tracking-[0.14em] uppercase text-sage mb-2">Clinical intake · Step-guided</p>
+    <h2 class="font-display text-[30px] md:text-[38px] leading-[1.1] font-semibold tracking-tight">Describe it. Show it.<br class="hidden sm:block"/> Get clear next steps.</h2>
+    <p class="text-[14px] md:text-[15px] text-muted mt-3 leading-relaxed max-w-[62ch]">Three guided steps — voice note, photo or video, then AI clinical guidance with voice playback and lesion overlay. Educational only, never a diagnosis.</p>
+  </div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-8 items-start" aria-labelledby="consultation-tab" id="consultation-view" role="tabpanel" tabindex="0">
+
+    <!-- ══════════ LEFT: Patient intake ══════════ -->
+    <section aria-labelledby="intake-heading" class="lg:col-span-5 flex flex-col gap-5">
+      <div class="card p-5 md:p-6">
+        <div class="flex items-center justify-between mb-5">
+          <div class="flex items-center gap-2.5">
+            <span class="icon-tile bg-sage-soft text-sage" aria-hidden="true"><span class="material-symbols-outlined" style="font-size:22px">clinical_notes</span></span>
+            <div><h2 class="font-display text-[20px] font-semibold leading-none" id="intake-heading">Patient intake</h2>
+            <p class="text-[12px] text-muted mt-1">~2 min · all fields optional but combined is best</p></div>
+          </div>
+        </div>
+
+        <ol class="list-none m-0 p-0">
+          <!-- Step 1: voice -->
+          <li class="grid grid-cols-[30px_1fr] gap-x-4">
+            <div class="flex flex-col items-center">
+              <span aria-hidden="true" class="step-num">1</span>
+              <span aria-hidden="true" class="step-line"></span>
+            </div>
+            <div class="pb-6">
+              <h3 class="text-[15px] font-semibold mb-0.5">Describe what's bothering you</h3>
+              <p class="text-[13px] text-muted mb-4 max-w-[38ch] leading-relaxed">A few sentences — how long it's been there, and how it feels.</p>
+              <div class="border border-border rounded-2xl p-5 md:p-6 flex flex-col items-center bg-paper2 hover:border-sage/40 transition-colors">
+                <div class="mic-dial" id="mic-dial">
+                  <span aria-hidden="true" class="pulse"></span>
+                  <span aria-hidden="true" class="ring"></span>
+                  <button aria-label="Start recording your voice note" aria-pressed="false" class="absolute inset-[10px] rounded-full btn-primary text-white flex items-center justify-center active:scale-95" id="mic-trigger" type="button">
+                    <span aria-hidden="true" class="material-symbols-outlined" id="mic-icon" style="font-size:28px">mic</span>
+                  </button>
+                </div>
+                <div aria-hidden="true" class="waveform mt-4" id="waveform">
+                  <span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+                </div>
+                <p aria-live="polite" class="mt-3 text-[13px] text-muted text-center" id="mic-label">Tap to record, or upload audio</p>
+                <button class="mt-2 inline-flex items-center gap-1.5 text-[13px] font-medium text-sage hover:text-sage-dark underline underline-offset-4 decoration-sage/30 hover:decoration-sage" id="audio-upload-button" type="button"><span aria-hidden="true" class="material-symbols-outlined" style="font-size:16px">upload</span>Choose an audio file</button>
+                <input accept="audio/*" class="hidden" id="audio-input" type="file"/>
+                <div class="w-full mt-4">
+                  <label class="text-[12px] font-semibold text-ink" for="consult-text">Or type instead <span class="font-normal text-muted">— optional if voice or media provided</span></label>
+                  <label class="sr-only" for="consult-text">Type your concern (optional if voice or media provided)</label>
+                  <textarea class="mt-2 w-full min-h-20 border border-border rounded-xl bg-white p-3 text-[13px] leading-relaxed focus:border-sage" id="consult-text" placeholder="e.g. Red itchy patch on my forearm for 2 weeks, slightly raised…" rows="3"></textarea>
+                </div>
+              </div>
+            </div>
+          </li>
+
+          <!-- Step 2: media -->
+          <li class="grid grid-cols-[30px_1fr] gap-x-4">
+            <div class="flex flex-col items-center">
+              <span aria-hidden="true" class="step-num">2</span>
+            </div>
+            <div>
+              <h3 class="text-[15px] font-semibold mb-0.5">Show the area</h3>
+              <p class="text-[13px] text-muted mb-4 max-w-[38ch] leading-relaxed" id="media-help">Clear photo or short video — optional, but improves accuracy. When both are provided, video takes precedence.</p>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <button aria-describedby="media-help" aria-label="Upload a skin image" class="frame-corners card-hover cursor-pointer group block w-full text-left bg-white border border-border rounded-2xl p-4 hover:shadow-card focus-visible:ring-2 focus-visible:ring-sage" id="image-picker" type="button">
+                  <span aria-hidden="true" class="corner corner-tl text-sage"></span><span aria-hidden="true" class="corner corner-tr text-sage"></span>
+                  <span aria-hidden="true" class="corner corner-bl text-sage"></span><span aria-hidden="true" class="corner corner-br text-sage"></span>
+                  <div class="flex items-start justify-between mb-5">
+                    <span class="icon-tile bg-sage-soft text-sage group-hover:bg-sage group-hover:text-white transition-colors" aria-hidden="true"><span class="material-symbols-outlined" style="font-size:22px">photo_camera</span></span>
+                    <span class="text-[11px] font-semibold px-2 py-1 rounded-full bg-amber-soft text-[#7A5410] border border-amber/20">One required</span>
+                  </div>
+                  <h4 class="text-[14px] font-semibold">Skin image</h4>
+                  <p class="text-[12px] text-muted leading-snug mt-1" id="image-label">High-resolution close-up</p>
+                  <p class="mt-3 text-[12px] font-semibold text-sage flex items-center gap-1">Upload photo<span aria-hidden="true" class="material-symbols-outlined group-hover:translate-x-0.5 transition-transform" style="font-size:15px">arrow_forward</span></p>
+                </button>
+                <button aria-describedby="media-help" aria-label="Upload a skin video" class="frame-corners card-hover cursor-pointer group block w-full text-left bg-white border border-border rounded-2xl p-4 hover:shadow-card focus-visible:ring-2 focus-visible:ring-sage" id="video-picker" type="button">
+                  <span aria-hidden="true" class="corner corner-tl text-border-strong"></span><span aria-hidden="true" class="corner corner-tr text-border-strong"></span>
+                  <span aria-hidden="true" class="corner corner-bl text-border-strong"></span><span aria-hidden="true" class="corner corner-br text-border-strong"></span>
+                  <div class="flex items-start justify-between mb-5">
+                    <span class="icon-tile bg-paper text-muted border border-border group-hover:bg-sage group-hover:text-white group-hover:border-sage transition-colors" aria-hidden="true"><span class="material-symbols-outlined" style="font-size:22px">videocam</span></span>
+                    <span class="text-[11px] font-semibold px-2 py-1 rounded-full bg-amber-soft text-[#7A5410] border border-amber/20">One required</span>
+                  </div>
+                  <h4 class="text-[14px] font-semibold">Skin video</h4>
+                  <p class="text-[12px] text-muted leading-snug mt-1" id="video-label">Short clip — movement + change over time</p>
+                  <p class="mt-3 text-[12px] font-semibold text-sage flex items-center gap-1">Upload video<span aria-hidden="true" class="material-symbols-outlined group-hover:translate-x-0.5 transition-transform" style="font-size:15px">arrow_forward</span></p>
+                </button>
+              </div>
+              <input accept="image/*" class="hidden" id="image-input" type="file"/>
+              <input accept="video/*" class="hidden" id="video-input" type="file"/>
+              <div class="mt-3 flex items-center gap-2 text-[12px] text-muted"><span aria-hidden="true" class="material-symbols-outlined text-sage" style="font-size:15px">check_circle</span><span id="media-ready-hint">JPG, PNG, MP4, WebM · max 50 MB video</span></div>
+            </div>
+          </li>
+        </ol>
+      </div>
+
+      <button aria-busy="false" class="btn-primary w-full text-white font-semibold text-[16px] py-4 px-6 rounded-2xl flex items-center justify-center gap-2.5 disabled:opacity-70 disabled:cursor-not-allowed" id="analyze-btn" type="button">
+        <span aria-hidden="true" class="material-symbols-outlined" id="analyze-icon" style="font-size:21px">query_stats</span>
+        <span id="analyze-label">Analyze concern</span>
+        <span aria-hidden="true" class="material-symbols-outlined opacity-70" style="font-size:18px">arrow_forward</span>
+      </button>
+      <p class="sr-only" aria-live="polite" id="analysis-status" role="status"></p>
+
+      <div class="flex items-start gap-3 rounded-2xl border border-amber/25 bg-amber-soft/60 px-4 py-3">
+        <span aria-hidden="true" class="material-symbols-outlined text-amber flex-shrink-0 mt-0.5" style="font-size:19px">lightbulb</span>
+        <p class="text-[13px] text-[#5C4A1E] leading-relaxed"><strong class="font-semibold">Tip for best results:</strong> use clear, well-lit media. Video is fully analyzed for temporal patterns and change over time.</p>
+      </div>
+    </section>
+
+    <!-- ══════════ RIGHT: Doctor response ══════════ -->
+    <section aria-labelledby="response-heading" class="lg:col-span-7 flex flex-col gap-4 lg:sticky lg:top-[132px]">
+      <div class="flex items-center justify-between flex-wrap gap-2">
+        <div class="flex items-center gap-2.5">
+          <span class="icon-tile bg-sage text-white shadow-pop" aria-hidden="true"><span class="material-symbols-outlined" style="font-size:22px">smart_toy</span></span>
+          <div><h2 class="font-display text-[20px] font-semibold leading-none" id="response-heading">Doctor's response</h2>
+          <p class="text-[12px] text-muted mt-1">Transcript · guidance · voice · overlay</p></div>
+        </div>
+        <span class="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1.5 rounded-full bg-white border border-border text-muted"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500" aria-hidden="true"></span>Ready for input</span>
+      </div>
+
+      <div class="frame-corners">
+        <span aria-hidden="true" class="corner corner-tl text-sage"></span><span aria-hidden="true" class="corner corner-tr text-sage"></span>
+        <span aria-hidden="true" class="corner corner-bl text-sage"></span><span aria-hidden="true" class="corner corner-br text-sage"></span>
+        <div class="card !rounded-[20px] min-h-[520px] relative flex flex-col overflow-hidden" id="response-canvas">
+          <div aria-hidden="true" class="scan-sweep hidden" id="scan-sweep"></div>
+
+          <!-- Empty state -->
+          <div class="flex-grow flex flex-col items-center justify-center text-center p-8 sm:p-12 bg-[radial-gradient(420px_220px_at_50%_30%,rgba(29,111,91,.08),transparent)]" id="empty-state">
+            <span class="w-20 h-20 rounded-3xl bg-sage-soft border border-sage/20 flex items-center justify-center mb-5" aria-hidden="true">
+              <svg class="loupe-mark text-sage" height="40" viewBox="0 0 34 34" width="40"><circle cx="15" cy="15" r="9" stroke-width="1.6"></circle><circle cx="15" cy="15" r="4.5" stroke-width="1.1"></circle><line stroke="currentColor" stroke-linecap="round" stroke-width="1.6" x1="21.5" x2="27" y1="21.5" y2="27"></line></svg>
+            </span>
+            <h3 class="font-display text-[22px] font-semibold mb-2">Ready when you are</h3>
+            <p class="text-[14px] text-muted max-w-[40ch] leading-relaxed">Add a photo and a short voice note. Your transcript and clinical guidance will appear here.</p>
+            <div class="mt-6 flex items-center gap-2 text-[12px] text-muted flex-wrap justify-center">
+              <span class="px-3 py-1.5 rounded-full bg-paper border border-border font-medium">1 · Voice</span>
+              <span aria-hidden="true" class="text-border-strong">→</span>
+              <span class="px-3 py-1.5 rounded-full bg-paper border border-border font-medium">2 · Photo / video</span>
+              <span aria-hidden="true" class="text-border-strong">→</span>
+              <span class="px-3 py-1.5 rounded-full bg-sage text-white font-semibold">Analyze</span>
+            </div>
+          </div>
+
+          <!-- Result state -->
+          <div class="hidden flex-grow flex-col p-6 md:p-8 gap-7 overflow-y-auto" id="result-state">
+            <div class="rounded-2xl bg-paper2 border border-border p-4 md:p-5">
+              <div class="flex items-center gap-2 mb-2 text-muted">
+                <span aria-hidden="true" class="material-symbols-outlined text-sage" style="font-size:17px">record_voice_over</span>
+                <span class="text-[12px] font-semibold uppercase tracking-[0.08em]" id="transcript-heading">Your description</span>
+              </div>
+              <blockquote aria-labelledby="transcript-heading" class="border-l-[3px] border-amber pl-4 text-[15px] italic leading-relaxed whitespace-pre-wrap" id="transcript-display">Your transcript will appear here after analysis.</blockquote>
+            </div>
+
+            <section aria-labelledby="guidance-heading" class="rounded-2xl border border-sage/20 bg-gradient-to-b from-sage-hover/60 to-white p-4 md:p-5">
+              <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+                <div class="flex items-center gap-2">
+                  <span class="icon-tile !w-9 !h-9 !rounded-xl bg-sage text-white" aria-hidden="true"><span class="material-symbols-outlined" style="font-size:19px">medical_services</span></span>
+                  <span class="text-[15px] font-semibold" id="guidance-heading">Doctor's guidance</span>
+                </div>
+                <span class="text-[11px] font-semibold px-2 py-1 rounded-full bg-white border border-border text-muted">Educational only</span>
+              </div>
+              <div class="text-[15px] leading-[1.7] whitespace-pre-wrap" id="guidance-display">The model response will appear here after analysis.</div>
+            </section>
+
+            <section aria-labelledby="annotated-heading" class="hidden flex-col gap-2" id="annotated-wrap">
+              <div class="flex items-center gap-2">
+                <span aria-hidden="true" class="material-symbols-outlined text-sage" style="font-size:18px">frame_inspect</span>
+                <span class="text-[14px] font-semibold" id="annotated-heading">Lesion analysis overlay</span>
+              </div>
+              <img alt="Annotated skin image with lesion callouts" class="w-full rounded-2xl border border-border shadow-card" id="annotated-img" loading="lazy"/>
+              <p class="text-[12px] text-muted leading-relaxed" id="annotated-caption">AI-detected regions (green = mild, amber = moderate, red = severe). Visual reference only — not a diagnosis.</p>
+            </section>
+
+            <div class="mt-auto rounded-2xl border border-border bg-paper2 p-4 md:p-5">
+              <div class="flex items-center gap-2 mb-3">
+                <span class="icon-tile !w-9 !h-9 !rounded-xl bg-white border border-border text-sage" aria-hidden="true"><span class="material-symbols-outlined" style="font-size:19px">spatial_audio</span></span>
+                <span class="text-[14px] font-semibold" id="doctor-audio-label">Doctor voice response</span>
+              </div>
+              <audio aria-labelledby="doctor-audio-label" class="w-full" controls id="doctor-audio"></audio>
+              <a class="hidden mt-3 inline-flex items-center gap-1.5 text-[13px] font-medium text-sage hover:text-sage-dark underline underline-offset-4" download id="download-audio" aria-label="Download the doctor's voice response as an audio file"><span aria-hidden="true" class="material-symbols-outlined" style="font-size:16px">download</span>Download voice response</a>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <p class="flex flex-wrap items-center gap-x-3 gap-y-1 text-muted px-1">
+        <span class="flex items-center gap-1.5"><span aria-hidden="true" class="material-symbols-outlined text-sage" style="font-size:16px">security</span><span class="text-[12px] font-medium">AI guidance only — not a diagnosis</span></span>
+        <span aria-hidden="true" class="w-1 h-1 rounded-full bg-border-strong"></span>
+        <span class="text-[12px]">Uploads sent to configured providers</span>
+      </p>
+    </section>
+  </div>
+
+  <!-- ══════════ RESEARCH ══════════ -->
+  <section aria-labelledby="research-tab" class="hidden flex-col gap-6" id="research-view" role="tabpanel" tabindex="0">
+    <div class="card p-5 md:p-6 flex items-center gap-3">
+      <span class="icon-tile bg-sage-soft text-sage" aria-hidden="true"><span class="material-symbols-outlined" style="font-size:22px">science</span></span>
+      <div>
+        <h2 class="font-display text-[20px] font-semibold leading-none">Research assistant</h2>
+        <p class="text-[13px] text-muted mt-1">Ask a clinical research question and review the supporting evidence.</p>
+      </div>
+      <span class="ml-auto hidden sm:inline-flex text-[11px] font-semibold px-2.5 py-1.5 rounded-full bg-paper border border-border text-muted">Sources + evidence notes included</span>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-8 items-start">
+      <section aria-label="Ask a research question" class="lg:col-span-5 frame-corners">
+        <span aria-hidden="true" class="corner corner-tl text-sage"></span><span aria-hidden="true" class="corner corner-tr text-sage"></span>
+        <span aria-hidden="true" class="corner corner-bl text-sage"></span><span aria-hidden="true" class="corner corner-br text-sage"></span>
+        <div class="card p-5 md:p-6 flex flex-col gap-5">
+          <div>
+            <label class="text-[14px] font-semibold" for="research-query">Research question</label>
+            <textarea class="mt-2 w-full min-h-36 border border-border rounded-xl bg-paper2 p-3.5 text-[14px] leading-relaxed focus:border-sage" id="research-query" placeholder="For example: What evidence-based care options are commonly discussed for painful cystic acne?" rows="6"></textarea>
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <button class="flex items-center justify-center gap-2 border border-border rounded-xl px-3 py-3.5 text-[13px] font-medium bg-white hover:border-sage hover:bg-sage-hover hover:shadow-card transition-all" id="research-image-button" type="button"><span aria-hidden="true" class="material-symbols-outlined text-sage" style="font-size:19px">image</span>Add image</button>
+            <button class="flex items-center justify-center gap-2 border border-border rounded-xl px-3 py-3.5 text-[13px] font-medium bg-white hover:border-sage hover:bg-sage-hover hover:shadow-card transition-all" id="research-video-button" type="button"><span aria-hidden="true" class="material-symbols-outlined text-sage" style="font-size:19px">videocam</span>Add video</button>
+          </div>
+          <input accept="image/*" class="hidden" id="research-image-input" type="file"/>
+          <input accept="video/*" class="hidden" id="research-video-input" type="file"/>
+          <p aria-live="polite" class="flex items-center gap-1.5 text-[12px] text-muted" id="research-file-label"><span aria-hidden="true" class="material-symbols-outlined" style="font-size:15px">info</span>Media is optional. Do not upload identifying information.</p>
+          <button aria-busy="false" class="btn-primary w-full text-white font-semibold text-[15px] py-3.5 px-5 rounded-xl flex items-center justify-center gap-2 disabled:opacity-70" id="research-submit" type="button">
+            <span aria-hidden="true" class="material-symbols-outlined" id="research-submit-icon" style="font-size:19px">search</span>
+            <span id="research-submit-label">Run research</span>
+          </button>
+          <p class="sr-only" aria-live="polite" id="research-status" role="status"></p>
+          <p class="text-[12px] text-[#5C4A1E] leading-relaxed border-l-[3px] border-amber bg-amber-soft/50 rounded-r-xl pl-3 pr-3 py-2">Research results are informational and are not a diagnosis or a substitute for a licensed clinician.</p>
+        </div>
+      </section>
+
+      <section aria-label="Research report" class="lg:col-span-7 frame-corners">
+        <span aria-hidden="true" class="corner corner-tl text-sage"></span><span aria-hidden="true" class="corner corner-tr text-sage"></span>
+        <span aria-hidden="true" class="corner corner-bl text-sage"></span><span aria-hidden="true" class="corner corner-br text-sage"></span>
+        <div class="card min-h-[520px] p-6 md:p-8" id="research-result">
+          <div class="flex flex-col items-center justify-center min-h-[430px] text-center" id="research-empty">
+            <span class="w-20 h-20 rounded-3xl bg-paper border border-border flex items-center justify-center mb-5" aria-hidden="true"><span class="material-symbols-outlined text-border-strong" style="font-size:40px">manage_search</span></span>
+            <h3 class="font-display text-[22px] font-semibold mb-2">No research report yet</h3>
+            <p class="text-[14px] text-muted max-w-[42ch] leading-relaxed">Enter a question to retrieve a concise synthesis with sources and evidence notes.</p>
+          </div>
+          <div class="hidden flex-col gap-6" id="research-content">
+            <div class="hidden flex-col gap-2" id="research-annotated-wrap">
+              <div class="flex items-center gap-2 text-muted"><span aria-hidden="true" class="material-symbols-outlined text-sage" style="font-size:17px">frame_inspect</span><span class="text-[12px] font-semibold uppercase tracking-[0.08em]" id="research-annotated-heading">Lesion analysis overlay</span></div>
+              <img alt="Annotated skin image with lesion callouts" aria-labelledby="research-annotated-heading" class="w-full rounded-2xl border border-border shadow-card" id="research-annotated-img" loading="lazy"/>
+              <p class="text-[12px] text-muted leading-relaxed" id="research-annotated-caption"></p>
+            </div>
+            <div class="rounded-2xl bg-paper2 border border-border p-4">
+              <div class="flex items-center gap-2 mb-2 text-muted"><span aria-hidden="true" class="material-symbols-outlined text-sage" style="font-size:17px">visibility</span><span class="text-[12px] font-semibold uppercase tracking-[0.08em]" id="research-visual-heading">Visual analysis</span></div>
+              <p aria-labelledby="research-visual-heading" class="text-[14px] leading-relaxed whitespace-pre-wrap" id="research-visual"></p>
+            </div>
+            <div>
+              <div class="flex items-center gap-2 mb-2 text-muted"><span aria-hidden="true" class="material-symbols-outlined text-sage" style="font-size:17px">description</span><span class="text-[12px] font-semibold uppercase tracking-[0.08em]" id="research-report-heading">Research report</span></div>
+              <div aria-labelledby="research-report-heading" class="text-[15px] leading-[1.7] whitespace-pre-wrap" id="research-report"></div>
+            </div>
+            <div class="rounded-2xl border border-sage/20 bg-sage-hover/50 p-4">
+              <div class="flex items-center gap-2 mb-2 text-muted"><span aria-hidden="true" class="material-symbols-outlined text-sage" style="font-size:17px">fact_check</span><span class="text-[12px] font-semibold uppercase tracking-[0.08em]" id="research-evidence-heading">Evidence notes</span></div>
+              <div aria-labelledby="research-evidence-heading" class="text-[14px] leading-relaxed whitespace-pre-wrap" id="research-evidence"></div>
+            </div>
+            <div>
+              <div class="flex items-center gap-2 mb-2 text-muted"><span aria-hidden="true" class="material-symbols-outlined text-sage" style="font-size:17px">link</span><span class="text-[12px] font-semibold uppercase tracking-[0.08em]" id="research-sources-heading">Sources</span></div>
+              <ul aria-labelledby="research-sources-heading" class="flex flex-col gap-2 text-[13px] list-none pl-0 m-0" id="research-sources"></ul>
+            </div>
+            <p class="text-[12px] text-muted leading-relaxed border-t border-border pt-4" id="research-disclaimer"></p>
+          </div>
+        </div>
+      </section>
+    </div>
+  </section><!-- /research-view -->
+
+  <!-- ══════════ CHAT (3rd top-level tab) ══════════ -->
+  <section aria-labelledby="chat-tab" class="hidden flex-col gap-6" id="chat-view" role="tabpanel" tabindex="0">
+    <div class="card p-5 md:p-6 flex items-center gap-3">
+      <span class="icon-tile bg-sage text-white shadow-pop" aria-hidden="true"><span class="material-symbols-outlined" style="font-size:22px">forum</span></span>
+      <div>
+        <h2 class="font-display text-[20px] font-semibold leading-none">History chat</h2>
+        <p class="text-[13px] text-muted mt-1">Pick a past session and ask follow-ups. Replies are educational only — not a diagnosis.</p>
+      </div>
+      <span class="ml-auto hidden sm:inline-flex text-[11px] font-semibold px-2.5 py-1.5 rounded-full bg-paper border border-border text-muted">Auto-saved sessions</span>
+    </div>
+
+      <!-- ══════════ HISTORY CHAT — full-width chat tab ══════════ -->
+      <section aria-labelledby="chat-tab" class="min-w-0" id="history-section">
+    <div class="card overflow-hidden">
+      <div class="relative flex h-[560px] sm:h-[620px] lg:h-[680px] border-t border-border overflow-hidden bg-paper2/50">
+        <div class="hidden fixed inset-0 bg-ink/40 z-40 md:hidden" id="sidebar-backdrop"></div>
+
+        <!-- Sidebar (persistent on desktop, drawer on mobile) -->
+        <aside aria-label="Chat history" class="fixed md:static inset-y-0 left-0 z-50 md:z-auto w-72 md:w-64 flex-shrink-0 -translate-x-full md:translate-x-0 transition-transform duration-200 ease-out bg-white border-r border-border flex flex-col h-full" id="chat-sidebar">
+          <div class="flex items-center gap-2 p-3 border-b border-border">
+            <button class="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 text-[13px] font-semibold rounded-xl border border-border bg-white hover:border-sage hover:bg-sage-hover transition-all" id="chat-new" type="button">
+              <span aria-hidden="true" class="material-symbols-outlined" style="font-size:18px">add</span>New chat
+            </button>
+            <button aria-controls="chat-sidebar" aria-label="Close chat history" class="md:hidden w-9 h-9 flex-shrink-0 flex items-center justify-center rounded-lg hover:bg-paper" id="sidebar-close" type="button">
+              <span aria-hidden="true" class="material-symbols-outlined" style="font-size:20px">close</span>
+            </button>
+          </div>
+          <div class="p-3 border-b border-border bg-paper2/60">
+            <label class="sr-only" for="history-kind">Filter sessions by type</label>
+            <select aria-label="Filter sessions by type" class="w-full border border-border rounded-xl text-[13px] px-3 py-2.5 bg-white font-medium" id="history-kind">
+              <option value="">All types</option>
+              <option value="consult">Consultations</option>
+              <option value="research">Research</option>
+            </select>
+          </div>
+          <nav aria-label="Past sessions" class="flex-1 overflow-y-auto p-2">
+            <ul class="list-none m-0 p-0 flex flex-col gap-1" id="chat-sessions"></ul>
+          </nav>
+          <p class="px-4 py-3 border-t border-border text-[11px] text-muted truncate bg-paper2/60">Profile ID: <span class="font-mono" id="profile-id"></span></p>
+        </aside>
+
+        <!-- Main chat panel -->
+        <div class="flex-1 min-w-0 flex flex-col bg-white">
+          <div class="flex items-center gap-2.5 px-4 py-3 border-b border-border bg-paper2/70 flex-wrap">
+            <button aria-controls="chat-sidebar" aria-expanded="false" aria-label="Show chat history" class="md:hidden w-10 h-10 flex-shrink-0 flex items-center justify-center rounded-xl border border-border bg-white hover:border-sage" id="sidebar-toggle" type="button">
+              <span aria-hidden="true" class="material-symbols-outlined" style="font-size:20px">menu</span>
+            </button>
+            <div class="min-w-0 flex-1">
+              <p class="text-[14px] font-semibold truncate" id="chat-active-title">General chat</p>
+              <p class="text-[12px] text-muted truncate" id="chat-active-meta">No session selected — general skin-care questions</p>
+            </div>
+            <div class="flex items-center gap-1 flex-shrink-0">
+              <a aria-label="Export this session as PDF" class="hidden w-10 h-10 items-center justify-center rounded-xl text-muted hover:text-sage hover:bg-sage-hover border border-transparent hover:border-border transition-all" id="chat-pdf" rel="noopener" target="_blank">
+                <span aria-hidden="true" class="material-symbols-outlined" style="font-size:19px">download</span>
+              </a>
+              <button aria-label="Refresh chat history" class="w-10 h-10 flex items-center justify-center rounded-xl text-muted hover:text-sage hover:bg-sage-hover border border-transparent hover:border-border transition-all" id="history-refresh" type="button">
+                <span aria-hidden="true" class="material-symbols-outlined" style="font-size:19px">refresh</span>
+              </button>
+            </div>
+          </div>
+          <div aria-live="polite" class="flex-1 flex flex-col gap-3 overflow-y-auto p-4 md:p-5 bg-[radial-gradient(600px_200px_at_50%_0%,rgba(29,111,91,.05),transparent)]" id="chat-thread" role="log"></div>
+          <form class="flex items-end gap-2 p-3 md:p-4 border-t border-border bg-white safe-bottom" id="chat-composer">
+            <label class="sr-only" for="chat-input">Message</label>
+            <textarea class="flex-1 min-w-0 border border-border rounded-xl bg-paper2 px-4 py-3 text-[14px] leading-relaxed focus:border-sage resize-none" id="chat-input" maxlength="2000" placeholder="Ask a follow-up about this session… (Enter to send, Shift+Enter for newline)" rows="2"></textarea>
+            <button aria-label="Send message" class="btn-primary w-12 h-12 rounded-xl text-white flex items-center justify-center flex-shrink-0 disabled:opacity-50" id="chat-send" type="submit">
+              <span aria-hidden="true" class="material-symbols-outlined" style="font-size:21px">send</span>
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </section><!-- /history-section -->
+  </section><!-- /chat-view -->
+</main>
+
+<footer class="w-full border-t border-border bg-white/90 glass safe-bottom mt-4">
+  <div class="max-w-6xl mx-auto px-4 sm:px-5 md:px-8 py-6 flex flex-col md:flex-row justify-between gap-4">
+    <div class="max-w-xl flex items-start gap-3">
+      <span class="w-9 h-9 rounded-xl bg-sage-soft text-sage flex items-center justify-center flex-shrink-0" aria-hidden="true">
+        <svg class="loupe-mark" height="18" viewBox="0 0 34 34" width="18"><circle cx="15" cy="15" r="9" stroke-width="2.4"></circle><circle cx="15" cy="15" r="4.5" stroke-width="1.4"></circle><line stroke="currentColor" stroke-linecap="round" stroke-width="2.4" x1="21.5" x2="27" y1="21.5" y2="27"></line></svg>
+      </span>
+      <div>
+        <span class="text-[14px] font-semibold">DermOmni</span>
+        <p class="text-[12px] text-muted mt-1 leading-relaxed">For informational purposes only. This guidance is not a diagnosis — see a licensed dermatologist for anything urgent or persistent.</p>
+      </div>
+    </div>
+  </div>
+</footer>
+
+<div aria-live="assertive" class="fixed inset-x-4 bottom-4 z-[60] flex flex-col items-stretch sm:items-end gap-2 sm:right-4 sm:left-auto sm:max-w-sm pointer-events-none" id="toast-region"></div>
+
+<script>
+  let isRecording = false;
+  let mediaRecorder = null;
+  let recordedChunks = [];
+  let audioFile = null;
+  let imageFile = null;
+  let videoFile = null;
+
+  const micDial = document.getElementById('mic-dial');
+  const micTrigger = document.getElementById('mic-trigger');
+  const micIcon = document.getElementById('mic-icon');
+  const micLabel = document.getElementById('mic-label');
+  const audioInput = document.getElementById('audio-input');
+  const imageInput = document.getElementById('image-input');
+  const videoInput = document.getElementById('video-input');
+  const analyzeBtn = document.getElementById('analyze-btn');
+  const analyzeIcon = document.getElementById('analyze-icon');
+  const analyzeLabel = document.getElementById('analyze-label');
+  const analysisStatus = document.getElementById('analysis-status');
+  const emptyState = document.getElementById('empty-state');
+  const resultState = document.getElementById('result-state');
+  const scanSweep = document.getElementById('scan-sweep');
+  const transcriptDisplay = document.getElementById('transcript-display');
+  const guidanceDisplay = document.getElementById('guidance-display');
+  const doctorAudio = document.getElementById('doctor-audio');
+  const downloadAudio = document.getElementById('download-audio');
+  const apiOrigin = window.location.protocol === 'file:'
+    ? 'http://127.0.0.1:8000'
+    : window.location.origin;
+
+  function setBusy(isBusy) {
+    analyzeBtn.disabled = isBusy;
+    analyzeBtn.setAttribute('aria-busy', String(isBusy));
+    analyzeIcon.textContent = isBusy ? 'progress_activity' : 'query_stats';
+    analyzeIcon.classList.toggle('animate-spin', isBusy);
+    analyzeLabel.textContent = isBusy ? 'Analyzing...' : 'Analyze concern';
+    scanSweep.classList.toggle('hidden', !isBusy);
+  }
+
+  function showError(message) {
+    const region = document.getElementById('toast-region');
+    const toast = document.createElement('div');
+    toast.setAttribute('role', 'alert');
+    toast.className = 'toast-enter pointer-events-auto w-full sm:w-auto bg-clay-soft border border-clay text-ink rounded-xl shadow-card px-4 py-3 flex items-start gap-3 text-[13px]';
+    const icon = document.createElement('span');
+    icon.setAttribute('aria-hidden', 'true');
+    icon.className = 'material-symbols-outlined text-clay flex-shrink-0';
+    icon.style.fontSize = '18px';
+    icon.textContent = 'error';
+    const text = document.createElement('span');
+    text.className = 'flex-1';
+    text.textContent = message;
+    const dismiss = document.createElement('button');
+    dismiss.type = 'button';
+    dismiss.className = 'text-clay flex-shrink-0 hover:opacity-70';
+    dismiss.setAttribute('aria-label', 'Dismiss message');
+    const dismissIcon = document.createElement('span');
+    dismissIcon.setAttribute('aria-hidden', 'true');
+    dismissIcon.className = 'material-symbols-outlined';
+    dismissIcon.style.fontSize = '18px';
+    dismissIcon.textContent = 'close';
+    dismiss.appendChild(dismissIcon);
+    dismiss.addEventListener('click', () => toast.remove());
+    toast.appendChild(icon);
+    toast.appendChild(text);
+    toast.appendChild(dismiss);
+    region.appendChild(toast);
+    window.setTimeout(() => toast.remove(), 8000);
+  }
+
+  document.getElementById('audio-upload-button').addEventListener('click', () => audioInput.click());
+  document.getElementById('image-picker').addEventListener('click', () => imageInput.click());
+  document.getElementById('video-picker').addEventListener('click', () => videoInput.click());
+
+  audioInput.addEventListener('change', () => {
+    audioFile = audioInput.files[0] || null;
+    if (audioFile) micLabel.textContent = `Audio selected: ${audioFile.name}`;
+  });
+
+  imageInput.addEventListener('change', () => {
+    imageFile = imageInput.files[0] || null;
+    if (imageFile) document.getElementById('image-label').textContent = imageFile.name;
+  });
+
+  videoInput.addEventListener('change', () => {
+    videoFile = videoInput.files[0] || null;
+    if (videoFile) document.getElementById('video-label').textContent = videoFile.name;
+  });
+
+  micTrigger.addEventListener('click', async () => {
+    if (isRecording) {
+      mediaRecorder.stop();
+      isRecording = false;
+      micDial.classList.remove('is-recording');
+      micIcon.textContent = 'mic';
+      micTrigger.setAttribute('aria-pressed', 'false');
+      micTrigger.setAttribute('aria-label', 'Start recording your voice note');
+      return;
+    }
+    if (!navigator.mediaDevices || !window.MediaRecorder) {
+      audioInput.click();
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      recordedChunks = [];
+      mediaRecorder = new MediaRecorder(stream);
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) recordedChunks.push(event.data);
+      };
+      mediaRecorder.onstop = () => {
+        stream.getTracks().forEach((track) => track.stop());
+        const blob = new Blob(recordedChunks, { type: mediaRecorder.mimeType || 'audio/webm' });
+        audioFile = new File([blob], 'patient-voice.webm', { type: blob.type });
+        micLabel.textContent = 'Voice recording ready';
+      };
+      mediaRecorder.start();
+      isRecording = true;
+      micDial.classList.add('is-recording');
+      micIcon.textContent = 'stop';
+      micLabel.textContent = 'Listening... tap to stop';
+      micTrigger.setAttribute('aria-pressed', 'true');
+      micTrigger.setAttribute('aria-label', 'Stop recording');
+    } catch (error) {
+      showError('Microphone access was not available. You can upload an audio file instead.');
+    }
+  });
+
+  analyzeBtn.addEventListener('click', async () => {
+    const consultText = (document.getElementById('consult-text').value || '').trim();
+    if (!audioFile && !consultText && !imageFile && !videoFile) {
+      return showError('Provide a voice note, typed concern, image, or video.');
+    }
+    const formData = new FormData();
+    if (audioFile) formData.append('audio', audioFile, audioFile.name);
+    if (consultText) formData.append('text', consultText);
+    if (imageFile) formData.append('image', imageFile, imageFile.name);
+    if (videoFile) formData.append('video', videoFile, videoFile.name);
+    formData.append('user_id', localStorage.getItem('skin_user_id') || '');
+    setBusy(true);
+    try {
+      const response = await fetch(`${apiOrigin}/api/analyze`, { method: 'POST', headers: { 'X-User-Id': localStorage.getItem('skin_user_id') || '' }, body: formData });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.detail || 'Analysis failed.');
+      transcriptDisplay.textContent = payload.transcript;
+      guidanceDisplay.textContent = payload.guidance;
+      doctorAudio.src = new URL(payload.audio_url, apiOrigin).href;
+      downloadAudio.href = doctorAudio.src;
+      downloadAudio.classList.remove('hidden');
+      doctorAudio.load();
+      const annotatedWrap = document.getElementById('annotated-wrap');
+      const annotatedImg = document.getElementById('annotated-img');
+      const annotatedCaption = document.getElementById('annotated-caption');
+      if (payload.annotated_image_url) {
+        annotatedImg.src = new URL(payload.annotated_image_url, apiOrigin).href;
+        const regions = payload.annotated_regions || [];
+        annotatedCaption.textContent = regions.length
+          ? `AI-detected regions (${regions.map((r) => `${r.label} — ${r.severity}`).join('; ')}). Visual reference only — not a diagnosis.`
+          : 'AI-detected regions (green = mild, amber = moderate, red = severe). Visual reference only — not a diagnosis.';
+        annotatedWrap.classList.remove('hidden');
+        annotatedWrap.classList.add('flex');
+      } else {
+        annotatedImg.removeAttribute('src');
+        annotatedWrap.classList.add('hidden');
+        annotatedWrap.classList.remove('flex');
+      }
+      emptyState.classList.add('hidden');
+      resultState.classList.remove('hidden');
+      resultState.classList.add('flex');
+      analysisStatus.textContent = 'Analysis complete. Transcript and guidance are ready below.';
+      if (payload.consultation_id && typeof bindChatSession === 'function') bindChatSession(payload.consultation_id);
+      if (window.innerWidth < 1024) {
+        resultState.parentElement.scrollIntoView({ behavior: 'smooth' });
+      }
+    } catch (error) {
+      const message = error instanceof TypeError
+        ? 'Cannot reach the backend. Start the server and open http://127.0.0.1:8000.'
+        : (error.message || 'Analysis failed. Please try again.');
+      showError(message);
+    } finally {
+      setBusy(false);
+    }
+  });
+  let researchImageFile = null;
+  let researchVideoFile = null;
+  const consultationTab = document.getElementById("consultation-tab");
+  const researchTab = document.getElementById("research-tab");
+  const chatTab = document.getElementById("chat-tab");
+  const modeTablist = document.getElementById("mode-tablist");
+  const consultationView = document.getElementById("consultation-view");
+  const researchView = document.getElementById("research-view");
+  const chatView = document.getElementById("chat-view");
+  const researchQuery = document.getElementById("research-query");
+  const researchImageInput = document.getElementById("research-image-input");
+  const researchVideoInput = document.getElementById("research-video-input");
+  const researchFileLabel = document.getElementById("research-file-label");
+  const researchSubmit = document.getElementById("research-submit");
+  const researchSubmitIcon = document.getElementById("research-submit-icon");
+  const researchSubmitLabel = document.getElementById("research-submit-label");
+  const researchStatus = document.getElementById("research-status");
+  const researchEmpty = document.getElementById("research-empty");
+  const researchContent = document.getElementById("research-content");
+  const researchVisual = document.getElementById("research-visual");
+  const researchReport = document.getElementById("research-report");
+  const researchEvidence = document.getElementById("research-evidence");
+  const researchSources = document.getElementById("research-sources");
+  const researchDisclaimer = document.getElementById("research-disclaimer");
+
+  function setTabStyle(tab, active) {
+    tab.classList.toggle("bg-sage", active);
+    tab.classList.toggle("text-white", active);
+    tab.classList.toggle("shadow-sm", active);
+    tab.classList.toggle("border", !active);
+    tab.classList.toggle("border-transparent", !active);
+    tab.classList.toggle("text-muted", !active);
+  }
+
+  function setMode(mode) {
+    const isResearch = mode === "research";
+    const isChat = mode === "chat";
+    const isConsult = mode === "consultation";
+    consultationView.classList.toggle("hidden", !isConsult);
+    consultationView.setAttribute("aria-hidden", String(!isConsult));
+    researchView.classList.toggle("hidden", !isResearch);
+    researchView.classList.toggle("flex", isResearch);
+    researchView.setAttribute("aria-hidden", String(!isResearch));
+    chatView.classList.toggle("hidden", !isChat);
+    chatView.classList.toggle("flex", isChat);
+    chatView.setAttribute("aria-hidden", String(!isChat));
+    setTabStyle(consultationTab, isConsult);
+    setTabStyle(researchTab, isResearch);
+    setTabStyle(chatTab, isChat);
+    consultationTab.setAttribute("aria-selected", String(isConsult));
+    researchTab.setAttribute("aria-selected", String(isResearch));
+    chatTab.setAttribute("aria-selected", String(isChat));
+    consultationTab.tabIndex = isConsult ? 0 : -1;
+    researchTab.tabIndex = isResearch ? 0 : -1;
+    chatTab.tabIndex = isChat ? 0 : -1;
+  }
+
+  function setResearchBusy(isBusy) {
+    researchSubmit.disabled = isBusy;
+    researchSubmit.setAttribute("aria-busy", String(isBusy));
+    researchSubmitIcon.textContent = isBusy ? "progress_activity" : "search";
+    researchSubmitIcon.classList.toggle("animate-spin", isBusy);
+    researchSubmitLabel.textContent = isBusy ? "Researching..." : "Run research";
+  }
+
+  function evidenceText(evidence) {
+    if (!evidence) return "No evidence assessment was returned.";
+    if (typeof evidence === "string") return evidence;
+    return Object.entries(evidence).map(([key, value]) => {
+      const label = key.replaceAll("_", " ");
+      const normalized = typeof value === "boolean" ? (value ? "Yes" : "No") : value;
+      return `${label}: ${normalized}`;
+    }).join(" | ");
+  }
+
+  function renderResearchSources(payload) {
+    const sourceItems = [...(payload.sources || []), ...(payload.research_papers || [])];
+    const uniqueSources = sourceItems.filter((item, index, items) => item && item.url && items.findIndex((candidate) => candidate && candidate.url === item.url) === index);
+    researchSources.replaceChildren();
+    if (!uniqueSources.length) {
+      const li = document.createElement("li");
+      li.className = "text-muted";
+      li.textContent = "No source links were returned.";
+      researchSources.appendChild(li);
+      return;
+    }
+    uniqueSources.forEach((item) => {
+      try {
+        const url = new URL(item.url);
+        if (!["http:", "https:"].includes(url.protocol)) return;
+        const li = document.createElement("li");
+        li.className = "rounded-xl border border-border bg-paper2 px-3 py-2.5 hover:border-sage transition-colors";
+        const link = document.createElement("a");
+        link.href = url.href;
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
+        link.className = "text-sage font-medium underline underline-offset-4 break-words hover:text-sage-dark";
+        link.textContent = item.title || url.href;
+        li.appendChild(link);
+        researchSources.appendChild(li);
+      } catch (error) {
+        console.warn("Skipping invalid research source", error);
+      }
+    });
+  }
+
+  consultationTab.addEventListener("click", () => { setMode("consultation"); consultationTab.focus(); });
+  researchTab.addEventListener("click", () => { setMode("research"); researchTab.focus(); });
+  chatTab.addEventListener("click", () => { setMode("chat"); chatTab.focus(); });
+  modeTablist.addEventListener("keydown", (event) => {
+    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+    event.preventDefault();
+    const tabs = [consultationTab, researchTab, chatTab];
+    const idx = tabs.indexOf(document.activeElement);
+    if (idx === -1) return;
+    const next = event.key === "ArrowRight" ? (idx + 1) % tabs.length : (idx - 1 + tabs.length) % tabs.length;
+    const modes = ["consultation", "research", "chat"];
+    setMode(modes[next]);
+    tabs[next].focus();
+  });
+  setMode("consultation");
+
+  document.getElementById("research-image-button").addEventListener("click", () => researchImageInput.click());
+  document.getElementById("research-video-button").addEventListener("click", () => researchVideoInput.click());
+  function updateResearchFileLabel() {
+    const parts = [];
+    if (researchImageFile) parts.push(`Image: ${researchImageFile.name}`);
+    if (researchVideoFile) parts.push(`Video: ${researchVideoFile.name}`);
+    researchFileLabel.textContent = parts.length
+      ? `${parts.join(" + ")}${researchImageFile && researchVideoFile ? " (video takes precedence)" : ""}`
+      : "Media is optional. Do not upload identifying information.";
+  }
+  researchImageInput.addEventListener("change", () => {
+    researchImageFile = researchImageInput.files[0] || null;
+    updateResearchFileLabel();
+  });
+  researchVideoInput.addEventListener("change", () => {
+    researchVideoFile = researchVideoInput.files[0] || null;
+    updateResearchFileLabel();
+  });
+
+  researchSubmit.addEventListener("click", async () => {
+    const query = researchQuery.value.trim();
+    if (!query) return showError("Please enter a research question first.");
+    const formData = new FormData();
+    formData.append("query", query);
+    formData.append("user_id", getUserId());
+    if (researchImageFile) formData.append("image", researchImageFile, researchImageFile.name);
+    if (researchVideoFile) formData.append("video", researchVideoFile, researchVideoFile.name);
+    setResearchBusy(true);
+    try {
+      const response = await fetch(`${apiOrigin}/api/research`, { method: "POST", headers: userHeaders(), body: formData });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.detail || "Research request failed.");
+      researchVisual.textContent = payload.visual_analysis || "No visual analysis was returned.";
+      researchReport.textContent = payload.report || "No research report was returned.";
+      researchEvidence.textContent = evidenceText(payload.evidence);
+      researchDisclaimer.textContent = payload.disclaimer || "Research results are informational only.";
+      renderResearchSources(payload);
+      const rWrap = document.getElementById('research-annotated-wrap');
+      const rImg = document.getElementById('research-annotated-img');
+      const rCap = document.getElementById('research-annotated-caption');
+      if (payload.annotated_image_url) {
+        rImg.src = new URL(payload.annotated_image_url, apiOrigin).href;
+        const regions = payload.annotated_regions || [];
+        rCap.textContent = regions.length
+          ? `AI-detected: ${regions.map((r) => `${r.label} — ${r.severity}`).join('; ')}. Visual reference only — not a diagnosis.`
+          : 'AI lesion overlay (green = mild, amber = moderate, red = severe). Visual reference only.';
+        rWrap.classList.remove('hidden');
+        rWrap.classList.add('flex');
+      } else {
+        rImg.removeAttribute('src');
+        rWrap.classList.add('hidden');
+        rWrap.classList.remove('flex');
+      }
+      researchEmpty.classList.add("hidden");
+      researchContent.classList.remove("hidden");
+      researchContent.classList.add("flex");
+      researchStatus.textContent = "Research report is ready below.";
+      if (payload.consultation_id && typeof bindChatSession === 'function') bindChatSession(payload.consultation_id);
+      if (window.innerWidth < 1024) researchContent.parentElement.scrollIntoView({ behavior: "smooth" });
+    } catch (error) {
+      const message = error instanceof TypeError
+        ? "Cannot reach the backend. Start the server and open http://127.0.0.1:8000."
+        : (error.message || "Research failed. Please try again.");
+      showError(message);
+    } finally {
+      setResearchBusy(false);
+    }
+  });
+
+  function getUserId() {
+    let id = localStorage.getItem("skin_user_id");
+    if (!id) {
+      id = (crypto.randomUUID ? crypto.randomUUID() : `u-${Date.now()}-${Math.random().toString(16).slice(2)}`);
+      localStorage.setItem("skin_user_id", id);
+    }
+    return id;
+  }
+  function userHeaders() { return { "X-User-Id": getUserId() }; }
+  function userQuery(extra = "") {
+    const sep = extra ? "&" : "";
+    return `${extra}${sep}user_id=${encodeURIComponent(getUserId())}`;
+  }
+  let chatSessions = [];
+  let activeSessionId = null;
+  let chatThreads = {};
+  let chatPending = false;
+  let chatAborter = null;
+
+  const chatThreadEl = () => document.getElementById("chat-thread");
+  const chatKey = (id) => id || "general";
+  const threadStoreKey = (id) => `skin_chat_${getUserId()}_${chatKey(id)}`;
+
+  function loadThread(id) {
+    const key = chatKey(id);
+    if (chatThreads[key]) return chatThreads[key];
+    try {
+      const raw = localStorage.getItem(threadStoreKey(id));
+      chatThreads[key] = raw ? JSON.parse(raw).slice(-50) : [];
+    } catch (e) { chatThreads[key] = []; }
+    return chatThreads[key];
+  }
+  function saveThread(id) {
+    try { localStorage.setItem(threadStoreKey(id), JSON.stringify(loadThread(id).slice(-50))); } catch (e) {}
+  }
+
+  function addChatMessage(role, content) {
+    const thread = chatThreadEl();
+    const empty = document.getElementById("chat-thread-empty");
+    if (empty) empty.remove();
+    const wrap = document.createElement("div");
+    wrap.className = role === "user" ? "flex justify-end" : "flex justify-start";
+    const bubble = document.createElement("div");
+    bubble.className = role === "user"
+      ? "max-w-[85%] rounded-2xl rounded-br-md bg-sage text-white px-4 py-2.5 text-[14px] leading-relaxed whitespace-pre-wrap break-words shadow-sm"
+      : "max-w-[85%] rounded-2xl rounded-bl-md bg-paper2 border border-border px-4 py-2.5 text-[14px] text-ink leading-relaxed whitespace-pre-wrap break-words shadow-sm";
+    bubble.textContent = content;
+    wrap.appendChild(bubble);
+    thread.appendChild(wrap);
+    thread.scrollTop = thread.scrollHeight;
+    return wrap;
+  }
+
+  function showChatTyping() {
+    const thread = chatThreadEl();
+    const wrap = document.createElement("div");
+    wrap.className = "flex justify-start";
+    wrap.id = "chat-typing";
+    wrap.innerHTML = '<div class="rounded-2xl rounded-bl-md bg-paper2 border border-border px-4 py-2.5"><span class="typing-dots" aria-hidden="true"><span></span><span></span><span></span></span><span class="sr-only">The assistant is typing a reply</span></div>';
+    thread.appendChild(wrap);
+    thread.scrollTop = thread.scrollHeight;
+  }
+  function hideChatTyping() {
+    const t = document.getElementById("chat-typing");
+    if (t) t.remove();
+  }
+
+  function setChatBusy(isBusy) {
+    chatPending = isBusy;
+    const send = document.getElementById("chat-send");
+    send.disabled = false;
+    send.setAttribute("aria-label", isBusy ? "Stop generating" : "Send message");
+    send.querySelector(".material-symbols-outlined").textContent = isBusy ? "stop" : "send";
+  }
+
+  function closeSidebarOnMobileSelect() {
+    if (window.innerWidth < 768) closeSidebar();
+  }
+
+  function renderChatSessions() {
+    const list = document.getElementById("chat-sessions");
+    list.replaceChildren();
+    const generalLi = document.createElement("li");
+    const general = document.createElement("button");
+    general.type = "button";
+    general.className = "w-full flex items-center gap-2 text-left pl-3 pr-3 py-2.5 rounded-xl text-[13px] font-semibold transition-colors " +
+      (activeSessionId === null ? "bg-sage-soft text-ink border border-sage/20" : "text-ink hover:bg-paper border border-transparent");
+    general.setAttribute("aria-current", activeSessionId === null ? "true" : "false");
+    const generalIcon = document.createElement("span");
+    generalIcon.setAttribute("aria-hidden", "true");
+    generalIcon.className = "material-symbols-outlined flex-shrink-0 text-sage";
+    generalIcon.style.fontSize = "16px";
+    generalIcon.textContent = "auto_awesome";
+    const generalText = document.createElement("span");
+    generalText.className = "truncate";
+    generalText.textContent = "General chat";
+    general.appendChild(generalIcon);
+    general.appendChild(generalText);
+    general.addEventListener("click", () => { openChatSession(null); closeSidebarOnMobileSelect(); });
+    generalLi.appendChild(general);
+    list.appendChild(generalLi);
+    if (!chatSessions.length) {
+      const li = document.createElement("li");
+      const p = document.createElement("p");
+      p.className = "text-[13px] text-muted px-3 py-3 leading-relaxed";
+      p.textContent = "No sessions yet. Run a consultation or research query to start chatting.";
+      li.appendChild(p);
+      list.appendChild(li);
+      return;
+    }
+    chatSessions.forEach((item) => {
+      const li = document.createElement("li");
+      const row = document.createElement("div");
+      row.className = "group relative rounded-xl border transition-colors " + (item.id === activeSessionId ? "bg-sage-soft border-sage/20" : "border-transparent hover:bg-paper hover:border-border");
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "w-full flex items-start gap-2 text-left pl-3 pr-9 py-2.5 rounded-xl text-ink";
+      btn.setAttribute("aria-current", item.id === activeSessionId ? "true" : "false");
+      const icon = document.createElement("span");
+      icon.setAttribute("aria-hidden", "true");
+      icon.className = "material-symbols-outlined flex-shrink-0 text-muted mt-0.5";
+      icon.style.fontSize = "16px";
+      icon.textContent = item.kind === "research" ? "science" : "record_voice_over";
+      const textWrap = document.createElement("span");
+      textWrap.className = "min-w-0 flex-1";
+      const prev = document.createElement("span");
+      prev.className = "block truncate text-[13px] font-medium";
+      prev.textContent = (item.preview || "(no text)").slice(0, 60);
+      const meta = document.createElement("span");
+      meta.className = "block truncate text-[11px] text-muted mt-0.5";
+      meta.textContent = `${item.created_at || ""} • ${item.media_kind || "none"}`;
+      textWrap.appendChild(prev);
+      textWrap.appendChild(meta);
+      btn.appendChild(icon);
+      btn.appendChild(textWrap);
+      btn.addEventListener("click", () => { openChatSession(item.id); closeSidebarOnMobileSelect(); });
+      const del = document.createElement("button");
+      del.type = "button";
+      del.className = "absolute right-1 top-1/2 -translate-y-1/2 w-7 h-7 flex items-center justify-center rounded-lg text-muted opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 hover:text-clay hover:bg-clay-soft transition-opacity";
+      del.setAttribute("aria-label", `Delete chat: ${(item.preview || "(no text)").slice(0, 40)}`);
+      const delIcon = document.createElement("span");
+      delIcon.setAttribute("aria-hidden", "true");
+      delIcon.className = "material-symbols-outlined";
+      delIcon.style.fontSize = "16px";
+      delIcon.textContent = "delete";
+      del.appendChild(delIcon);
+      del.addEventListener("click", (event) => {
+        event.stopPropagation();
+        if (window.confirm("Delete this chat? This can't be undone.")) deleteSession(item.id);
+      });
+      row.appendChild(btn);
+      row.appendChild(del);
+      li.appendChild(row);
+      list.appendChild(li);
+    });
+  }
+
+  function renderChatThread() {
+    const thread = chatThreadEl();
+    thread.replaceChildren();
+    const messages = loadThread(activeSessionId);
+    if (!messages.length) {
+      const p = document.createElement("p");
+      p.id = "chat-thread-empty";
+      p.className = "text-[13px] text-muted text-center py-8 max-w-[38ch] mx-auto leading-relaxed";
+      p.textContent = activeSessionId
+        ? "Ask a follow-up about this session — I answer from your stored results."
+        : "Ask general skin-care questions, or pick a session on the left for grounded follow-ups.";
+      thread.appendChild(p);
+      return;
+    }
+    messages.forEach((m) => addChatMessage(m.role, m.content));
+  }
+
+  function updateChatHeader() {
+    const item = chatSessions.find((s) => s.id === activeSessionId);
+    const title = document.getElementById("chat-active-title");
+    const meta = document.getElementById("chat-active-meta");
+    const pdf = document.getElementById("chat-pdf");
+    if (!item) {
+      title.textContent = "General chat";
+      meta.textContent = "No session selected — general skin-care questions";
+      pdf.classList.add("hidden");
+      pdf.classList.remove("inline-flex");
+      return;
+    }
+    title.textContent = `${item.kind === "research" ? "Research" : "Consultation"} • ${(item.preview || "").slice(0, 60) || "(no text)"}`;
+    meta.textContent = `${item.created_at || ""} • ${item.media_kind || "none"} • replies grounded in this session`;
+    pdf.href = `${apiOrigin}/api/history/${item.id}/export.pdf?${userQuery()}`;
+    pdf.classList.remove("hidden");
+    pdf.classList.add("inline-flex");
+  }
+
+  async function deleteSession(id) {
+    if (!id) return;
+    try {
+      await fetch(`${apiOrigin}/api/history/${id}?${userQuery()}`, { method: "DELETE", headers: userHeaders() });
+    } catch (e) { console.warn("Delete failed", e); }
+    delete chatThreads[chatKey(id)];
+    try { localStorage.removeItem(threadStoreKey(id)); } catch (e) {}
+    if (activeSessionId === id) {
+      activeSessionId = null;
+      renderChatThread();
+    }
+    await refreshChatSessions();
+    updateChatHeader();
+  }
+
+  function addChatImage(imageUrl, caption) {
+    const thread = chatThreadEl();
+    const wrap = document.createElement("div");
+    wrap.className = "flex justify-start";
+    const figure = document.createElement("figure");
+    figure.className = "max-w-[85%] rounded-2xl bg-paper2 border border-border p-2 shadow-sm";
+    const img = document.createElement("img");
+    img.src = imageUrl;
+    img.alt = "Annotated skin image with lesion callouts";
+    img.className = "w-full rounded-xl border border-border";
+    img.loading = "lazy";
+    figure.appendChild(img);
+    if (caption) {
+      const cap = document.createElement("figcaption");
+      cap.className = "text-[11px] text-muted mt-1.5 px-1 leading-relaxed";
+      cap.textContent = caption;
+      figure.appendChild(cap);
+    }
+    wrap.appendChild(figure);
+    thread.appendChild(wrap);
+    thread.scrollTop = thread.scrollHeight;
+  }
+
+  async function openChatSession(id) {
+    activeSessionId = id || null;
+    renderChatSessions();
+    updateChatHeader();
+    renderChatThread();
+    if (activeSessionId) {
+      try {
+        const res = await fetch(`${apiOrigin}/api/history/${activeSessionId}?${userQuery()}`, { headers: userHeaders() });
+        const record = await res.json();
+        if (res.ok && record.annotated_image_url) {
+          addChatImage(new URL(record.annotated_image_url, apiOrigin).href, "Stored lesion overlay for this session (PDF includes it too).");
+        }
+      } catch (e) { console.warn("Annotated preview failed", e); }
+    }
+    if (activeSessionId && !loadThread(activeSessionId).length) {
+      try {
+        const res = await fetch(`${apiOrigin}/api/history/${activeSessionId}?${userQuery()}`, { headers: userHeaders() });
+        const record = await res.json();
+        if (res.ok) {
+          const body = (record.report || record.guidance || "").slice(0, 220);
+          const seed = `You're viewing your ${record.kind} from ${record.created_at || "this session"}.` +
+            (body ? ` Summary: ${body}…` : "") +
+            ` Ask me anything about it — I answer from these stored results.`;
+          loadThread(activeSessionId).push({ role: "assistant", content: seed, ts: Date.now() });
+          saveThread(activeSessionId);
+          renderChatThread();
+          if (record.annotated_image_url) {
+            addChatImage(new URL(record.annotated_image_url, apiOrigin).href, "Stored lesion overlay for this session (PDF includes it too).");
+          }
+        }
+      } catch (e) { console.warn("Chat seed failed", e); }
+    }
+  }
+
+  async function refreshChatSessions() {
+    const kind = document.getElementById("history-kind").value;
+    try {
+      const q = userQuery(kind ? `kind=${encodeURIComponent(kind)}&limit=50` : "limit=50");
+      const res = await fetch(`${apiOrigin}/api/history?${q}`, { headers: userHeaders() });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "History fetch failed.");
+      chatSessions = data.items || [];
+      if (activeSessionId && !chatSessions.find((s) => s.id === activeSessionId)) {
+        activeSessionId = null;
+      }
+      renderChatSessions();
+      updateChatHeader();
+    } catch (e) { console.warn("History refresh failed", e); }
+  }
+
+  async function bindChatSession(consultationId) {
+    await refreshChatSessions();
+    await openChatSession(consultationId || null);
+  }
+
+  async function doSendChat(text) {
+    const message = (text || "").trim();
+    if (!message || chatPending) return;
+    const thread = loadThread(activeSessionId);
+    thread.push({ role: "user", content: message, ts: Date.now() });
+    saveThread(activeSessionId);
+    addChatMessage("user", message);
+    document.getElementById("chat-input").value = "";
+    showChatTyping();
+    setChatBusy(true);
+    chatAborter = new AbortController();
+    try {
+      const res = await fetch(`${apiOrigin}/api/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...userHeaders() },
+        signal: chatAborter.signal,
+        body: JSON.stringify({
+          message,
+          consultation_id: activeSessionId,
+          user_id: getUserId(),
+          history: thread.slice(-9, -1).map((m) => ({ role: m.role, content: m.content })),
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || "Chat request failed.");
+      hideChatTyping();
+      thread.push({ role: "assistant", content: data.reply, ts: Date.now() });
+      saveThread(activeSessionId);
+      addChatMessage("assistant", data.reply);
+    } catch (e) {
+      hideChatTyping();
+      if (e && e.name === "AbortError") {
+        addChatMessage("assistant", "Stopped. Ask again whenever you're ready.");
+      } else {
+        const msg = e instanceof TypeError
+          ? "Cannot reach the backend. Start the server and open http://127.0.0.1:8000."
+          : (e.message || "Chat failed. Please try again.");
+        const wrap = addChatMessage("assistant", `Sorry — ${msg}`);
+        const retry = document.createElement("button");
+        retry.type = "button";
+        retry.className = "mt-2 text-[12px] font-medium text-sage underline underline-offset-4";
+        retry.textContent = "Retry";
+        retry.addEventListener("click", () => { wrap.remove(); doSendChat(message); });
+        wrap.firstChild.appendChild(retry);
+        chatThreadEl().scrollTop = chatThreadEl().scrollHeight;
+      }
+    } finally {
+      setChatBusy(false);
+      chatAborter = null;
+    }
+  }
+
+  document.getElementById("chat-composer").addEventListener("submit", (e) => {
+    e.preventDefault();
+    if (chatPending && chatAborter) { chatAborter.abort(); return; }
+    doSendChat(document.getElementById("chat-input").value);
+  });
+  document.getElementById("chat-input").addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      if (chatPending && chatAborter) { chatAborter.abort(); return; }
+      doSendChat(e.target.value);
+    }
+  });
+  document.getElementById("chat-new").addEventListener("click", () => { openChatSession(null); closeSidebarOnMobileSelect(); });
+
+  const chatSidebar = document.getElementById("chat-sidebar");
+  const sidebarBackdrop = document.getElementById("sidebar-backdrop");
+  const sidebarToggle = document.getElementById("sidebar-toggle");
+  const sidebarClose = document.getElementById("sidebar-close");
+
+  function openSidebar() {
+    chatSidebar.classList.remove("-translate-x-full");
+    chatSidebar.classList.add("translate-x-0");
+    sidebarBackdrop.classList.remove("hidden");
+    sidebarToggle.setAttribute("aria-expanded", "true");
+    const firstFocusable = chatSidebar.querySelector("button, [href], select, input, textarea");
+    if (firstFocusable) firstFocusable.focus();
+  }
+  function closeSidebar() {
+    chatSidebar.classList.add("-translate-x-full");
+    chatSidebar.classList.remove("translate-x-0");
+    sidebarBackdrop.classList.add("hidden");
+    sidebarToggle.setAttribute("aria-expanded", "false");
+  }
+  sidebarToggle.addEventListener("click", () => {
+    if (chatSidebar.classList.contains("translate-x-0")) { closeSidebar(); } else { openSidebar(); }
+  });
+  sidebarClose.addEventListener("click", () => { closeSidebar(); sidebarToggle.focus(); });
+  sidebarBackdrop.addEventListener("click", () => { closeSidebar(); sidebarToggle.focus(); });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && window.innerWidth < 768 && chatSidebar.classList.contains("translate-x-0")) {
+      closeSidebar();
+      sidebarToggle.focus();
+    }
+  });
+
+  document.getElementById("history-refresh").addEventListener("click", refreshChatSessions);
+  document.getElementById("history-kind").addEventListener("change", refreshChatSessions);
+  document.getElementById("profile-id").textContent = getUserId();
+  renderChatThread();
+  refreshChatSessions();
+</script>
+</body>
+</html>
