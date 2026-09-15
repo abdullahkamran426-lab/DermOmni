@@ -334,6 +334,7 @@ async def research(
                 query.strip(),
                 image_path,
                 video_path,
+                user_id=owner,
             )
             # Lesion-overlay annotation for research images (same as consult).
             if image_path is not None:
@@ -374,6 +375,22 @@ async def research(
                 image_path=image_path,
                 log_label="Research",
             )
+            # Ingest successful provider reports into the per-user vector-DB
+            # research memory (best-effort; never fails the request).
+            try:
+                from common.research_memory import save_research_memory
+
+                await run_in_threadpool(
+                    save_research_memory,
+                    owner,
+                    query.strip(),
+                    result.get("report", ""),
+                    evidence_level=(result.get("evidence") or {}).get("evidence_level", ""),
+                    consultation_id=result.get("consultation_id", ""),
+                    report_generated_by=result.get("report_generated_by", ""),
+                )
+            except Exception as mem_err:
+                logger.warning("Research memory ingest failed: %s", mem_err)
             return result
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc

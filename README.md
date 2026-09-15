@@ -8,6 +8,7 @@ DermOmni is a multimodal AI consultation and research assistant for general skin
 4. **Consultation History** — secure per-user storage and retrieval of past sessions (text outputs + the uploaded still photo + the overlay image; audio/video bytes are never stored).
 5. **PDF Report Export** — clinician-ready PDF rendering of any stored session via ReportLab.
 6. **Feedback Loop & Eval Store** — thumbs up/down + notes with run metadata, exportable as JSONL for a future automated eval harness.
+7. **Research Memory (Vector-DB Fallback)** — successful research reports are chunked into a per-user persistent vector store (ChromaDB, JSONL + TF-IDF fallback); when live web/paper search is down, the synthesis LLM backfills from the same user's cached research instead of failing.
 
 > Important: this project provides general informational guidance only. It is not a medical diagnosis and does not replace care from a licensed dermatologist or clinician.
 
@@ -57,6 +58,7 @@ DermOmni is a multimodal AI consultation and research assistant for general skin
 - **Consultation history:** SQLite (WAL) store keyed by opaque `user_id`; text outputs + one normalized still photo per session (`consultation_media/<id>.jpg`, 1024px JPEG) + overlay path (`annotated_image_path` → public `annotated_image_url`); newest-first listing with previews; owner-scoped read/delete (delete also removes the photo and the overlay file).
 - **PDF export:** ReportLab renderer (`common/pdf_report.py`) — brand header, meta table, disclaimer callout, embedded uploaded photo, embedded lesion-overlay figure with severity legend, sectioned report, numbered sources, evidence box, footer.
 - **Feedback loop:** `POST /api/feedback` (up/down + ≤2000-char note) auto-attaches run metadata; `GET /api/evals/export` dumps JSONL for offline evals.
+- **Research memory:** per-user vector store (`common/research_memory.py`) — provider-synthesised reports chunked (~600 chars, 300/user cap) into persistent ChromaDB (`data/research_memory/`), JSONL + TF-IDF fallback when Chroma is unavailable; reads filtered by `user_id` (`"anonymous"` excluded); dead live search → `PRIOR RESEARCH (CACHED)` backfill into the synthesis prompt, dead synthesis → `RELATED PRIOR FINDINGS` appended to the local fallback report.
 
 ### Tech Stack in Use
 
@@ -68,7 +70,8 @@ DermOmni is a multimodal AI consultation and research assistant for general skin
 - **Medical search:** Tavily advanced search — trusted dermatology domains + journal domains (`Skin_research_tools.py`)
 - **Orchestration:** LangChain Core `@tool` definitions for search/scrape/vision
 - **Vision fallback:** Hugging Face Inference Providers, `Qwen/Qwen2.5-VL-3B-Instruct` (`huggingface_vision.py`, images only)
-- **Frontend:** Single-page `frontend/code.html` (Tailwind, mic recording via `MediaRecorder`, image/video upload, audio playback, lesion-overlay display in consult + research + history chat, history chatbot, PDF links)
+- **Frontend:** Single-page `frontend/redesigned.html` (Tailwind, mic recording via `MediaRecorder`, image/video upload, audio playback, lesion-overlay display in consult + research + history chat, history chatbot, PDF links)
+- **Research memory store:** ChromaDB persistent collection (`chromadb>=0.5.0`) with JSONL + TF-IDF fallback (`common/research_memory.py`)
 - **Shared core:** `common/` — typed errors, Pydantic contracts, Gemini key rotation + File API, media normalization, lesion annotator, history store, PDF renderer
 - **Validation/storage:** Pillow image validation, temp-dir request isolation, `generated_audio/` served at `/audio/` (doctor MP3s + `annotated_<uuid>.png` overlays), SQLite history at `data/consultations.db` (`HISTORY_DB_PATH` override)
 - **PDF export:** ReportLab (`reportlab>=4.0.0`) — pure `build_consultation_pdf(record) -> bytes`, no temp files
@@ -77,7 +80,7 @@ DermOmni is a multimodal AI consultation and research assistant for general skin
 
 ```text
                     +----------------------+
-                    | frontend/code.html   |
+                    | frontend/redesigned.html |
                     | mic / text / image / |
                     | video upload + audio |
                     | playback + report UI |
@@ -125,7 +128,7 @@ The same architecture, as a renderable flowchart:
 
 ```mermaid
 flowchart TD
-    FE["frontend/code.html<br/>mic, text, image, video upload<br/>+ audio playback + report UI"]
+    FE["frontend/redesigned.html<br/>mic, text, image, video upload<br/>+ audio playback + report UI"]
     API["main.py — FastAPI<br/>validation, rate limit 5/min,<br/>temp dirs + cleanup, error mapping"]
     CONSULT["Consultation<br/>voice_of_the_patient.py (STT)<br/>brain_of_the_doctor_gemini.py<br/>voice_of_the_doctor.py (TTS)"]
     RESEARCH["Research Pipeline<br/>Skin_research_pipeline.py<br/>Vision -> Tavily search -> Synthesis -> Evidence grade"]
@@ -167,6 +170,7 @@ flowchart TD
 | `common/cache.py` | TTL cache for Tavily searches (default 300 s, 256 entries). |
 | `common/image_annotator.py` | Lesion overlay. `detect_skin_lesion_regions()` (Gemini JSON `box_2d` on 0–1000 scale, heuristic fallback) + `annotate_image()` (Pillow translucent fill + severity colors + label headers). Absolute output dir (`generated_audio/`), unique `annotated_<uuid>.png` per call, returns `{annotated_image_url (/audio/…), file_path, regions}`. |
 | `common/history_store.py` | History + feedback store. Stdlib `sqlite3` (WAL, thread-locked), `init_db()` (+ `media_image_path` / `annotated_image_path` migrations), `save/list/get/delete_consultation()`, `archive_consultation_image()` / `resolve_media_image()` / `save_annotated_image_path()` / `resolve_annotated_image()` / `annotated_url_for_path()` / `get_media_dir()`, `save/list_feedback()`, `export_eval_jsonl()`. Resolves path via `HISTORY_DB_PATH` or `data/consultations.db`. |
+| `common/research_memory.py` | Per-user research memory. `ResearchMemory` (persistent ChromaDB `research_memory` collection at `data/research_memory/`, JSONL + TF-IDF fallback via `FallbackVectorEngine`), `save_research_memory()` (provider reports only, ~600-char chunks, 300/user cap, `"anonymous"` excluded, never raises), `query_research_memory()` (always `user_id`-filtered). Env: `RESEARCH_MEMORY_PATH`, `RESEARCH_MEMORY_BACKEND` (`auto`/`chroma`/`jsonl`). |
 | `common/pdf_report.py` | PDF renderer. Pure `build_consultation_pdf(record) -> bytes` + `parse_report_sections()`; ReportLab Platypus layout (meta table, disclaimer callout, embedded uploaded photo ≤150×90 mm, embedded lesion-overlay figure with severity legend, sections, sources, evidence box, footer). Missing/corrupt images degrade gracefully to text-only. |
 | `frontend/redesigned.html` | Clinical UI: header, step rail (Describe → Visuals → Review), mic dial + waveform, preview, scan-sweep analysis state, guidance + audio player, lesion-overlay figure (consult + research + history thread), research report + sources + evidence badge, history chatbot, PDF links. |
 | `generated_audio/` | Runtime output. Per-request MP3s (cleaned after 1 hour) + per-request `annotated_<uuid>.png` overlays (kept until the parent session is deleted). Served at `/audio/`. |
@@ -185,7 +189,7 @@ This is the default patient-facing flow: voice/text + visual → transcript + gu
 ```mermaid
 sequenceDiagram
     actor U as Patient (Browser)
-    participant FE as frontend/code.html
+    participant FE as frontend/redesigned.html
     participant API as main.py (/api/analyze)
     participant STT as voice_of_the_patient.py
     participant BRAIN as brain_of_the_doctor_gemini.py
@@ -396,6 +400,13 @@ run_skin_research_pipeline(query, image_path, video_path)
   |     dedupe by URL preserving order → sources[] + research_papers[]
   |     combined_research = "MEDICAL SOURCES: ... RESEARCH PAPERS: ..." [:7000]
   |
+  +-- Step 2b: Vector-DB memory backfill (only when BOTH live searches came
+  |     back empty AND a non-anonymous user_id was passed)
+  |     query_research_memory(user_id, query + visual_excerpt, top_k=3)
+  |       → "PRIOR RESEARCH (CACHED — same user, may be dated)" block
+  |     prepended to combined_research, so the synthesis LLM still gets
+  |     evidence from the user's own past provider reports.
+  |
   +-- Step 3: Synthesizing report (Skin_research_agents.synthesis_chain)
   |     input: { query, visual_analysis, research_data }
   |     Gemini (MEDIUM thinking, 3000 tokens, temp 0.7, text/plain):
@@ -408,7 +419,9 @@ run_skin_research_pipeline(query, image_path, video_path)
   |     _clean_research_report(): strip markdown/bullets/symbols, normalize
   |     blank lines → plain patient-readable text
   |     On failure → _fallback_report() (safe generic guidance + original
-  |     visual + query), marked report_generated_by="local_fallback"
+  |     visual + query), marked report_generated_by="local_fallback".
+  |     If memory backfill found cached chunks, top-2 are appended as
+  |     "RELATED PRIOR FINDINGS (from your own past research, may be dated)".
   |
   +-- Step 4: Grading evidence quality (evidence_chain)
         input: { report, sources: JSON(all_sources) }
@@ -430,6 +443,11 @@ Validate full state against ResearchState contract
 _save_consultation_record(): save row + archive still photo +
 save_annotated_image_path() → response += {consultation_id, annotated_image_path?}
 (persist wrapped in try/except → warning log only; clinical result unaffected)
+  v
+save_research_memory(): if report_generated_by == "provider", chunk the report
+(~600 chars, tagged with user_id/query/evidence_level) into the persistent
+vector DB for future fallbacks. Local fallbacks and "anonymous" sessions are
+never ingested. Best-effort — ingest failure never fails the request.
   v
 Return JSON:
 {
@@ -737,12 +755,14 @@ curl -OJ "http://127.0.0.1:8000/api/evals/export?limit=1000"
 │   ├── localization.py
 │   ├── media.py
 │   ├── pdf_report.py
+│   ├── research_memory.py
 │   └── README.md
 ├── data
 │   ├── consultation_media
 │   │   ├── 5250efce83b04235a7e82e41147814e3.jpg
 │   │   └── ca7673cd71e44e229bfda3193c639188.jpg
 │   ├── dermatology_kb
+│   ├── research_memory
 │   └── consultations.db
 ├── frontend
 │   └── redesigned.html
@@ -758,6 +778,7 @@ curl -OJ "http://127.0.0.1:8000/api/evals/export?limit=1000"
 │   ├── test_image_annotator.py
 │   ├── test_localization.py
 │   ├── test_media.py
+│   ├── test_research_memory.py
 │   └── test_sse.py
 ├── brain_of_the_doctor_gemini.py
 ├── huggingface_vision.py
@@ -796,6 +817,9 @@ GEMINI_API_KEY=...
 DEEPGRAM_API_KEY=...
 TAVILY_API_KEY=...
 HF_API_KEY=...
+# Optional (research memory vector DB; defaults work without these):
+# RESEARCH_MEMORY_PATH=data/research_memory
+# RESEARCH_MEMORY_BACKEND=auto   # auto | chroma | jsonl
 
 # 5. Start the server
 python main.py

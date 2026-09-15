@@ -134,8 +134,15 @@ def run_skin_research_pipeline(
     patient_query: str,
     image_path: str | Path | None = None,
     video_path: str | Path | None = None,
+    *,
+    user_id: str = "",
 ) -> dict[str, Any]:
-    """Run the full research pipeline and validate its public response contract."""
+    """Run the full research pipeline and validate its public response contract.
+
+    ``user_id`` scopes the vector-DB research memory: past provider reports
+    from the same user are ingested after success, and read back as cached
+    evidence when live web/paper search is unavailable.
+    """
     patient_query = patient_query.strip()
     if not patient_query:
         raise ValueError("patient_query must not be empty")
@@ -208,7 +215,31 @@ def run_skin_research_pipeline(
         content = guideline.get("content", "")
         rag_lines.append(f"- [{category}] {title}: {content}")
     rag_text = "\n".join(rag_lines)
-    combined_research = f"CLINICAL GUIDELINES (RAG):\n{rag_text}\n\nMEDICAL SOURCES:\n{web_results_raw}\n\nRESEARCH PAPERS:\n{paper_results_raw}"[:_MAX_RESEARCH_CHARS]
+
+    # Vector-DB fallback: when live search produced nothing, backfill from the
+    # same user's cached past research so the synthesis LLM still has evidence.
+    memory_hits: list[dict[str, Any]] = []
+    if not web_results_raw.strip() and not paper_results_raw.strip() and (user_id or "").strip():
+        try:
+            from common.research_memory import query_research_memory
+
+            memory_hits = query_research_memory(user_id, f"{patient_query} {visual_excerpt}", top_k=3)
+            if memory_hits:
+                logger.info("[Research] Backfilled %d cached memory chunks for user", len(memory_hits))
+        except Exception as mem_err:
+            logger.warning("[Research] Memory backfill failed: %s", mem_err)
+    memory_lines = []
+    for hit in memory_hits:
+        memory_lines.append(
+            f"- [prior: {hit.get('query', '')} | evidence: {hit.get('evidence_level', 'unknown')}] "
+            f"{hit.get('content', '')}"
+        )
+    memory_text = "\n".join(memory_lines)
+    combined_research = (
+        f"CLINICAL GUIDELINES (RAG):\n{rag_text}\n\n"
+        f"PRIOR RESEARCH (CACHED — same user, may be dated):\n{memory_text}\n\n"
+        f"MEDICAL SOURCES:\n{web_results_raw}\n\nRESEARCH PAPERS:\n{paper_results_raw}"
+    )[:_MAX_RESEARCH_CHARS]
 
     logger.info("[Research] Step 3 — Synthesising report")
     try:
@@ -224,6 +255,12 @@ def run_skin_research_pipeline(
         state["report_generated_by"] = "local_fallback"
         state["report_error"] = "synthesis_provider_error"
         state["report"] = _fallback_report(patient_query, state["visual_analysis"])
+        if memory_hits:
+            cached = "\n".join(f"- {h.get('content', '')[:400]}" for h in memory_hits[:2])
+            state["report"] += (
+                "\n\nRELATED PRIOR FINDINGS (from your own past research, may be dated "
+                "— confirm with a licensed dermatologist):\n" + cached
+            )
 
     logger.info("[Research] Step 4 — Grading evidence quality")
     all_sources = state["sources"] + state["research_papers"]
