@@ -17,7 +17,7 @@ resolution-markers = [
 ]
 
 [[package]]
-name = "ai-skin-specialist"
+name = "dermomni"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [

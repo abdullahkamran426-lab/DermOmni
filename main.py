@@ -254,7 +254,7 @@ def _rate_limit_handler(request: Request, exc: RateLimitExceeded) -> JSONRespons
     )
 
 
-app = FastAPI(title="AI Skin Specialist")
+app = FastAPI(title="DermOmni")
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_handler)
 app.add_middleware(SlowAPIMiddleware)

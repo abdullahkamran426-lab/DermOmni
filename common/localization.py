@@ -1,5 +1,5 @@
 """
-Localization module for AI Skin Specialist.
+Localization module for DermOmni.
 Provides dynamic Accept-Language header parsing and language-specific prompt directives.
 """
 

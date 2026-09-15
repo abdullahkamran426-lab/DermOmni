@@ -1,5 +1,5 @@
 """
-Dermatology Vector Store (RAG) module for AI Skin Specialist.
+Dermatology Vector Store (RAG) module for DermOmni.
 Provides semantic retrieval of evidence-based clinical guidelines and literature.
 Supports ChromaDB with an automatic zero-dependency fallback engine.
 """

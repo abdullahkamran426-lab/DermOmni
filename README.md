@@ -1,6 +1,6 @@
-# AI Skin Specialist
+# DermOmni
 
-AI Skin Specialist is a multimodal AI consultation and research assistant for general skin-care information. It combines patient voice, typed text, skin images, and skin videos into experiences served by a FastAPI backend and a single browser frontend (`frontend/code.html`):
+DermOmni is a multimodal AI consultation and research assistant for general skin-care information. It combines patient voice, typed text, skin images, and skin videos into experiences served by a FastAPI backend and a single browser frontend (`frontend/code.html`):
 
 1. **Instant Consultation** — empathetic, spoken + written skin-care guidance.
 2. **Evidence-Based Research** — structured 4-section report with medical sources, research papers, and evidence grading.
@@ -153,7 +153,7 @@ flowchart TD
 
 | File | Role |
 |------|------|
-| `main.py` | HTTP layer. Serves frontend, exposes `GET /`, `GET /health`, `POST /api/analyze`, `POST /api/research`, `POST /api/chat`, history/PDF/feedback/eval endpoints. Handles upload validation, size/type limits, temp files, audio retention, rate limiting, CORS, and error-to-status mapping. |
+| `main.py` | HTTP layer. Serves frontend, exposes `GET /`, `GET /health`, `POST /api/analyze`, `POST /api/analyze-stream` (SSE preview, same limits), `POST /api/research`, `POST /api/chat`, history/PDF/feedback/eval endpoints. Handles upload validation, size/type limits, temp files, audio retention, rate limiting, CORS, and error-to-status mapping. |
 | `brain_of_the_doctor_gemini.py` | Consultation intelligence. Builds prompt, calls Gemini text-only or multimodal, cleans output to 6 sentences / 2200 chars plain text, handles HF fallback + text-only degrade. |
 | `voice_of_the_patient.py` | Deepgram STT. Reads audio bytes, retries on 429/5xx + transport errors, returns transcript or typed `TranscriptionError`. |
 | `voice_of_the_doctor.py` | Deepgram TTS. Truncates to 2000 chars at sentence boundary, synthesizes MP3, saves to `generated_audio/doctor_response_<uuid>.mp3`. |
@@ -203,6 +203,7 @@ sequenceDiagram
     else text provided
         API->>API: use typed text directly
     end
+    API->>API: lesion overlay (if image) + RAG evidence (best-effort, never fatal)
     API->>BRAIN: patient text + image/video (priority: video > image > text)
     BRAIN->>GEM: generate (inline bytes if <=10MB, else File API)
     alt Gemini succeeds
@@ -217,8 +218,8 @@ sequenceDiagram
     BRAIN-->>API: guidance
     API->>TTS: convert_text_to_doctor_audio(guidance)
     TTS-->>API: doctor_response_<uuid>.mp3
-    API-->>FE: { transcript, guidance, audio_url }
-    FE-->>U: show transcript + guidance + audio player
+    API-->>FE: { transcript, guidance, audio_url, annotated_image_url?, annotated_regions? }
+    FE-->>U: show transcript + guidance + audio player + lesion overlay (when returned)
 ```
 
 **Detailed trace:**
@@ -253,6 +254,11 @@ _run_analysis(audio_path, image_path, video_path, text)
   |     brain_input = transcript or "No written description provided..."
   |     reject if >12000 chars → 400
   |
+  +-- Step 2b: Lesion overlay + RAG evidence (best-effort, never fatal)
+  |     if image: annotate_image() → generated_audio/annotated_<uuid>.png
+  |       (Gemini boxes + Pillow callouts; failures only log a warning)
+  |     RAG: get_dermatology_rag().query(brain_input, top_k=3) → rag_sources
+  |
   +-- Step 3: brain_of_the_doctor(patient_text, image, video)
   |     priority: video > image > text-only
   |     prompt = "Patient description: ..." + media note
@@ -282,9 +288,15 @@ _run_analysis(audio_path, image_path, video_path, text)
         Deepgram aura-2-thalia-en → MP3 bytes → generated_audio/
         doctor_response_<uuid>.mp3 (empty → tts_empty_response → 502)
   v
-Return JSON: { transcript, guidance, audio_url: "/audio/....mp3" }
+Return JSON: { transcript, guidance, audio_url: "/audio/....mp3",
+  language, rag_sources, annotated_image_url?, annotated_regions? }
+  v
+_save_consultation_record(): save row + archive still photo +
+save_annotated_image_path() → response += {consultation_id, annotated_image_path?}
+(persist wrapped in try/except → warning log only; clinical result unaffected)
   v
 Frontend displays transcript + guidance text + audio player (auto-cleaned server-side)
++ lesion overlay image (when returned)
 Temp request dir deleted (shutil.rmtree)
 ```
 
@@ -332,7 +344,10 @@ flowchart TD
     FALLBACK --> EVID
     CLEAN --> EVID["Evidence chain — Gemini<br/>grade: strong / moderate / limited"]
     EVID --> VALIDATE["Validate against ResearchState contract"]
-    VALIDATE --> RESP(["Return JSON: report, sources,<br/>research_papers, evidence, disclaimer"])
+    VALIDATE --> ANNO{"Image provided? annotate_image()<br/>overlay -> generated_audio/"}
+    ANNO --> RESP(["Return JSON: report, sources,<br/>research_papers, evidence, disclaimer,<br/>annotated_image_url/regions, consultation_id"])
+    ANNO --> PERSIST["save row + archive still photo +<br/>save_annotated_image_path()"]
+    PERSIST --> RESP
 ```
 
 **Detailed trace:**
@@ -407,16 +422,28 @@ run_skin_research_pipeline(query, image_path, video_path)
         _safe_json_parse() tolerates fences/prose → _normalize_evidence()
         → fallback moderate/limited if grading fails
   v
-Validate full state against ResearchState contract → return JSON:
+Validate full state against ResearchState contract
+  |
+  +-- Step 5: Lesion overlay (image only, best-effort, never fatal)
+  |     annotate_image() → generated_audio/annotated_<uuid>.png
+  |     result += {annotated_image_url, annotated_regions}
+  v
+_save_consultation_record(): save row + archive still photo +
+save_annotated_image_path() → response += {consultation_id, annotated_image_path?}
+(persist wrapped in try/except → warning log only; clinical result unaffected)
+  v
+Return JSON:
 {
   query, visual_analysis, report,
   sources: [{title, url}], research_papers: [{title, url}],
   evidence: { evidence_level, evidence_reason, source_count,
               has_peer_reviewed, confidence_note },
-  disclaimer: "This report is generated by an AI research assistant..."
+  disclaimer: "This report is generated by an AI research assistant...",
+  annotated_image_url?, annotated_regions?, consultation_id
 }
   v
-Frontend renders report sections, source links, paper links, evidence badge
+Frontend renders overlay image (when returned) + report sections,
+source links, paper links, evidence badge
 Temp request dir deleted
 ```
 
@@ -529,11 +556,15 @@ Success (note the additive `consultation_id` for history/PDF/feedback):
   "transcript": "transcribed or typed patient words (empty for image-only)",
   "guidance": "6-sentence plain-text skin-care guidance",
   "audio_url": "/audio/doctor_response_<uuid>.mp3",
+  "language": "en (from Accept-Language)",
+  "rag_sources": [{ "title": "...", "content": "..." }],
   "annotated_image_url": "/audio/annotated_<uuid>.png (only when an image was uploaded)",
   "annotated_regions": [{ "label": "Primary Lesion", "severity": "moderate" }],
   "consultation_id": "<uuid-hex>"
 }
 ```
+
+`POST /api/analyze-stream` (SSE, same inputs/limits as `/api/analyze`) streams progressive events instead: `language_detected` → `stt_transcript` → `image_annotation` → `rag_evidence` → `guidance` → `audio_url` → `complete` (or `error`). Preview-only: it does not write history rows.
 
 ### `POST /api/research` — multipart form
 
@@ -658,7 +689,7 @@ Pure function `build_consultation_pdf(record: dict) -> bytes` (ReportLab Platypu
 5. **Annotated analysis overlay** — the lesion-callout image for that session (from `annotated_image_path`, aspect-preserved ≤150×90 mm) with a severity legend (green = mild, amber = moderate, red = severe) and a visual-reference-only caption. Missing/corrupt overlays are skipped.
 6. Patient description → visual analysis → `parse_report_sections()` output (`VISUAL OBSERVATIONS / POTENTIAL CONDITIONS / RECOMMENDATIONS / WHEN TO SEE A DOCTOR`, else `CLINICAL GUIDANCE`).
 7. Numbered sources (title + muted URL, capped at 20) and evidence table.
-8. Footer on every page: `AI Skin Specialist — informational only • Page N` + storage note.
+8. Footer on every page: `DermOmni — informational only • Page N` + storage note.
 
 ```bash
 curl -OJ "http://127.0.0.1:8000/api/history/<id>/export.pdf?user_id=<uuid>"
@@ -762,7 +793,19 @@ What was cleaned (logic-preserving):
   `.pytest_cache/`, `generated_audio/`, and `data/*.db` are gitignored runtime
   artifacts, not source. Public-but-currently-unreferenced helpers
   (`scrape_medical_url`, `prepare_vision_image`, `play_audio`,
-  `execute_with_key_rotation`) were kept as documented module surface.
+  `execute_with_key_rotation`, `resolve_media_image` /
+  `resolve_annotated_image`, `get_localized_disclaimer` /
+  `get_language_name`) were kept as documented module surface (the
+  localization helpers are exercised by `tests/test_localization.py`).
+- **Second import-only pass (AST-verified, zero logic change):** dropped
+  `ImageFont` (`common/image_annotator.py`, plus moved the misplaced
+  `Path` import into the import block), `is_quota_error` +
+  `HuggingFaceVisionError` (`Skin_research_tools.py`),
+  `DermatologyVectorStore` (`tests/test_dermatology_rag.py`), `os` +
+  function-level `io` (`tests/test_history_feedback_pdf.py`), `pytest` +
+  `SUPPORTED_LANGUAGES` (`tests/test_localization.py`) and `pytest`
+  (`tests/test_sse.py`). A post-edit AST rescan over all 30 Python
+  files reports no unused imports.
 
 Verify nothing changed behaviorally:
 

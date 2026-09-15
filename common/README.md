@@ -1,6 +1,6 @@
 # `common/` — Shared Foundation
 
-Shared, provider-agnostic helpers for the AI Skin Specialist backend.
+Shared, provider-agnostic helpers for the DermOmni backend.
 All FastAPI routes (`main.py`), the consult brain (`brain_of_the_doctor_gemini.py`),
 and the research pipeline (`Skin_research_*`) import from here instead of
 re-implementing logic.

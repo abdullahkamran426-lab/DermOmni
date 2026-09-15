@@ -1,5 +1,5 @@
 """
-Multimodal Image Annotation module for AI Skin Specialist.
+Multimodal Image Annotation module for DermOmni.
 Uses Gemini Vision to detect skin abnormalities and Pillow to draw bounding box callouts.
 """
 
