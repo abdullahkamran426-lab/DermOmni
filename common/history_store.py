@@ -195,36 +195,6 @@ def archive_consultation_image(
         return ""
 
 
-def resolve_media_image(record: dict, *, db_path: Path | None = None) -> Path | None:
-    """Return the archived photo path for a consultation row, if usable."""
-    _ = db_path  # accepted for API symmetry; path stored is absolute.
-    candidate = (record or {}).get("media_image_path") or ""
-    if not candidate:
-        return None
-    path = Path(candidate)
-    try:
-        if path.is_file() and path.stat().st_size > 0:
-            return path
-    except OSError:
-        return None
-    return None
-
-
-def resolve_annotated_image(record: dict, *, db_path: Path | None = None) -> Path | None:
-    """Return the annotated overlay image path for a row, if usable."""
-    _ = db_path
-    candidate = (record or {}).get("annotated_image_path") or ""
-    if not candidate:
-        return None
-    path = Path(candidate)
-    try:
-        if path.is_file() and path.stat().st_size > 0:
-            return path
-    except OSError:
-        return None
-    return None
-
-
 def save_annotated_image_path(
     record_id: str, annotated_src: str | Path | None, *, db_path: Path | None = None
 ) -> str:

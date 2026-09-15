@@ -2,8 +2,6 @@ from __future__ import annotations
 
 import logging
 import os
-import platform
-import subprocess
 import time
 from pathlib import Path
 
@@ -125,39 +123,3 @@ def convert_text_to_doctor_audio(
         "Deepgram TTS was unavailable after retrying.",
         code="tts_unavailable",
     ) from last_error
-
-
-def play_audio(audio_filepath: str | Path) -> bool:
-    """
-    Play an audio file using the OS's default player.
-
-    Returns True if playback was launched successfully, False otherwise
-    (missing file, missing player executable, or non-zero exit code).
-    """
-    audio_path = Path(audio_filepath)
-    if not audio_path.exists():
-        logger.error("Cannot play audio — file not found: %s", audio_path)
-        return False
-
-    system = platform.system()
-    try:
-        if system == "Darwin":
-            result = subprocess.run(["afplay", str(audio_path)], check=False)
-            ok = result.returncode == 0
-        elif system == "Windows":
-            os.startfile(str(audio_path))  # noqa: S606 — no return code to check
-            ok = True
-        else:
-            result = subprocess.run(["xdg-open", str(audio_path)], check=False)
-            ok = result.returncode == 0
-
-        if not ok:
-            logger.warning("Audio player exited with a non-zero status for %s", audio_path)
-        return ok
-
-    except FileNotFoundError as exc:
-        logger.error("Audio player executable not found on this system: %s", exc)
-        return False
-    except OSError as exc:
-        logger.error("Failed to play audio %s: %s", audio_path, exc)
-        return False

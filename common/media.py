@@ -117,14 +117,3 @@ def prepare_vision_media(media_path: Path) -> tuple[bytes, str, str]:
             "The uploaded media could not be read for visual analysis.",
             code="invalid_media",
         ) from exc
-
-
-def prepare_vision_image(image_path: Path) -> tuple[bytes, str]:
-    """Decode and normalize an image upload into a provider-safe JPEG payload."""
-    media_bytes, mime_type, media_type = prepare_vision_media(Path(image_path))
-    if media_type != "image":
-        raise VisionAnalysisError(
-            "Expected an image file but received a video file.",
-            code="invalid_media_type",
-        )
-    return media_bytes, mime_type

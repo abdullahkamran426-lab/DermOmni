@@ -195,7 +195,10 @@ class ResearchMemory:
         # Prune oldest chunks beyond the per-user cap.
         own = [r for r in self._jsonl_records if r.get("user_id") == user_id]
         if len(own) > _MAX_CHUNKS_PER_USER:
-            drop_ids = {r["id"] for r in sorted(own, key=lambda r: str(r.get("created_at", "")))[: len(own) - _MAX_CHUNKS_PER_USER]}
+            # Oldest first, so the newest chunks survive the cut.
+            by_age = sorted(own, key=lambda r: str(r.get("created_at", "")))
+            excess = len(own) - _MAX_CHUNKS_PER_USER
+            drop_ids = {r["id"] for r in by_age[:excess]}
             self._jsonl_records = [r for r in self._jsonl_records if r.get("id") not in drop_ids]
             self._rewrite_jsonl()
 
@@ -247,13 +250,21 @@ class ResearchMemory:
         if self._engine is None or self._engine_size != len(self._jsonl_records):
             from common.dermatology_rag import FallbackVectorEngine
 
-            docs = [
-                {"id": r["id"], "title": r.get("query", ""), "category": r.get("evidence_level", ""), "content": r.get("content", "")}
-                for r in self._jsonl_records
-            ]
+            docs = []
+            for r in self._jsonl_records:
+                docs.append(
+                    {
+                        "id": r["id"],
+                        "title": r.get("query", ""),
+                        "category": r.get("evidence_level", ""),
+                        "content": r.get("content", ""),
+                    }
+                )
             self._engine = FallbackVectorEngine(docs)
             self._engine_size = len(self._jsonl_records)
-        scored = self._engine.search(f"{query_text} {' '.join(r.get('query', '') for r in own)}", top_k=top_k * 3)
+        # Include each record's original question so topic words help matching.
+        past_questions = " ".join(r.get("query", "") for r in own)
+        scored = self._engine.search(f"{query_text} {past_questions}", top_k=top_k * 3)
         by_id = {r["id"]: r for r in own}
         hits = []
         for doc in scored:
