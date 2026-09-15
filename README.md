@@ -1,6 +1,6 @@
 # DermOmni
 
-DermOmni is a multimodal AI consultation and research assistant for general skin-care information. It combines patient voice, typed text, skin images, and skin videos into experiences served by a FastAPI backend and a single browser frontend (`frontend/code.html`):
+DermOmni is a multimodal AI consultation and research assistant for general skin-care information. It combines patient voice, typed text, skin images, and skin videos into experiences served by a FastAPI backend and a single browser frontend (`frontend/redesigned.html`):
 
 1. **Instant Consultation** — empathetic, spoken + written skin-care guidance.
 2. **Evidence-Based Research** — structured 4-section report with medical sources, research papers, and evidence grading.
@@ -26,9 +26,8 @@ DermOmni is a multimodal AI consultation and research assistant for general skin
   - [C. Cross-Cutting Flows](#c-cross-cutting-flows)
 - [API Overview](#api-overview)
 - [Consultation History, PDF Export & Feedback Loop](#consultation-history-pdf-export--feedback-loop)
-- [Frontend Overview](#frontend-overview--frontendcodehtml)
-- [Quality, Safety & Limits](#quality-safety--limits)
-- [Code Readability & Cleanup Notes](#code-readability--cleanup-notes)
+- [Folder Structure](#folder-structure)
+- [Installation](#installation)
 - [Medical Disclaimer](#medical-disclaimer)
 
 ## Project Overview
@@ -169,7 +168,7 @@ flowchart TD
 | `common/image_annotator.py` | Lesion overlay. `detect_skin_lesion_regions()` (Gemini JSON `box_2d` on 0–1000 scale, heuristic fallback) + `annotate_image()` (Pillow translucent fill + severity colors + label headers). Absolute output dir (`generated_audio/`), unique `annotated_<uuid>.png` per call, returns `{annotated_image_url (/audio/…), file_path, regions}`. |
 | `common/history_store.py` | History + feedback store. Stdlib `sqlite3` (WAL, thread-locked), `init_db()` (+ `media_image_path` / `annotated_image_path` migrations), `save/list/get/delete_consultation()`, `archive_consultation_image()` / `resolve_media_image()` / `save_annotated_image_path()` / `resolve_annotated_image()` / `annotated_url_for_path()` / `get_media_dir()`, `save/list_feedback()`, `export_eval_jsonl()`. Resolves path via `HISTORY_DB_PATH` or `data/consultations.db`. |
 | `common/pdf_report.py` | PDF renderer. Pure `build_consultation_pdf(record) -> bytes` + `parse_report_sections()`; ReportLab Platypus layout (meta table, disclaimer callout, embedded uploaded photo ≤150×90 mm, embedded lesion-overlay figure with severity legend, sections, sources, evidence box, footer). Missing/corrupt images degrade gracefully to text-only. |
-| `frontend/code.html` | Clinical UI: header, step rail (Describe → Visuals → Review), mic dial + waveform, preview, scan-sweep analysis state, guidance + audio player, lesion-overlay figure (consult + research + history thread), research report + sources + evidence badge, history chatbot, PDF links. |
+| `frontend/redesigned.html` | Clinical UI: header, step rail (Describe → Visuals → Review), mic dial + waveform, preview, scan-sweep analysis state, guidance + audio player, lesion-overlay figure (consult + research + history thread), research report + sources + evidence badge, history chatbot, PDF links. |
 | `generated_audio/` | Runtime output. Per-request MP3s (cleaned after 1 hour) + per-request `annotated_<uuid>.png` overlays (kept until the parent session is deleted). Served at `/audio/`. |
 | `data/consultations.db` | Runtime output. SQLite history/feedback DB (WAL). Created on startup; override with `HISTORY_DB_PATH`. Stores text + one normalized still photo + overlay path per session; never stores audio/video bytes. |
 | `data/consultation_media/` | Runtime output. Archived normalized still photos (`<consultation_id>.jpg`) embedded in PDF exports. Deleted with the parent session (overlay PNG in `generated_audio/` is deleted too). |
@@ -723,95 +722,87 @@ curl -OJ "http://127.0.0.1:8000/api/evals/export?limit=1000"
 | History DB I/O failure | 503 |
 | PDF render failure | 502 |
 
-## Frontend Overview — `frontend/code.html`
+## Folder Structure
 
-Single-file clinical consultation UI (Fraunces + IBM Plex Sans, Tailwind, Material Symbols):
-
-- Header with brand mark and disclaimer link.
-- 3-step rail: 1 Describe (mic dial + waveform + typed textarea), 2 Visuals (image/video dropzone + preview + format hints), 3 Review (Analyze button + status).
-- Recording via browser `MediaRecorder` — no PortAudio/PyAudio/FFmpeg needed.
-- Analysis state with scan-sweep animation while awaiting `/api/analyze` or `/api/research`.
-- Results: transcript card, guidance card, audio player (`audio_url`), lesion-overlay figure (`annotated_image_url` + region caption, consult and research), research report sections, source/paper link lists, evidence-level badge, persistent medical disclaimer.
-- History chatbot: ChatGPT-style two-pane UI — session sidebar (kind filter + Refresh + New chat) and thread view with composer (Enter to send, Shift+Enter for newline, send-again to stop). Each new consultation/research auto-opens its session; threads persist per browser profile (`localStorage:skin_chat_<user>_<session>`); profile ID display (`localStorage:skin_user_id`).
-- Session header: kind/date/media meta with PDF download (`GET /api/history/{id}/export.pdf?user_id=`) + Delete; replies come from `POST /api/chat` grounded in the stored session, with typing indicator, cancel, and inline retry.
-
-## Quality, Safety & Limits
-
-- **No diagnosis / no prescription:** system prompts forbid naming a definitive condition or medication; outputs are educational guidance + escalation criteria.
-- **Speech-safe text:** consultation and research outputs are stripped of markdown, bullets, emojis, and reasoning traces before display and TTS.
-- **Input guards:** audio 25 MB, image 10 MB, video 50 MB; image dimension cap 10k px (endpoint) / 2048 px vision payload; transcript cap 12k chars; TTS cap 2000 chars; research payload cap 7000 chars.
-- **Privacy:** uploads live only in per-request temp dirs (deleted after response); TTS MP3s persist (1-hour retention) and overlay PNGs persist until session delete. History stores text outputs + metadata + one normalized still photo per session (`consultation_media/<id>.jpg`) + overlay path (`annotated_image_path`) — never audio/video bytes; per-user scoping via opaque UUID, cross-user reads return 404; session delete removes the photo and overlay files. Treat voice/images/video as sensitive health data and define retention policy before production use.
-- **Known limits:** HF fallback supports images only (video degrades to text-only); long videos work best under ~1 minute; Gemini quota exhaustion surfaces as 429 with automatic key rotation first. History list blanks `report`/`guidance` (uses `preview` ≤280 chars) — fetch the item or PDF for full text. `audio_url` in old history rows may 404 after MP3 cleanup.
-
-## Code Readability & Cleanup Notes
-
-The codebase follows a student-first readability standard: explicit step-by-step
-blocks are preferred over dense one-liners, even when the one-liner is shorter.
-No business logic, route signature, DB query, or API behavior was changed to
-achieve this — only the shape of the code.
-
-```python
-# EASY TO READ (preferred in this repo)
-def process_data(data_list):
-    processed_values = []
-
-    for item in data_list:
-        is_active = item.get('active', False)
-        value = item.get('value', 0)
-
-        # Only process active items with values greater than 10
-        if is_active and value > 10:
-            processed_values.append(value * 2)
-
-    return processed_values
-
-# HARD TO READ (avoid): nested ternary / functional chain hiding the same logic
-process_data = lambda d: [x.get('value') * 2 for x in d if x.get('active') and x.get('value', 0) > 10] or []
+```text
+├── common
+│   ├── cache.py
+│   ├── contracts.py
+│   ├── dermatology_rag.py
+│   ├── env.py
+│   ├── errors.py
+│   ├── gemini.py
+│   ├── history_store.py
+│   ├── image_annotator.py
+│   ├── localization.py
+│   ├── media.py
+│   ├── pdf_report.py
+│   └── README.md
+├── data
+│   ├── consultation_media
+│   │   ├── 5250efce83b04235a7e82e41147814e3.jpg
+│   │   └── ca7673cd71e44e229bfda3193c639188.jpg
+│   ├── dermatology_kb
+│   └── consultations.db
+├── frontend
+│   └── redesigned.html
+├── tests
+│   ├── __init__.py
+│   ├── conftest.py
+│   ├── README.md
+│   ├── test_chat.py
+│   ├── test_dermatology_rag.py
+│   ├── test_endpoints.py
+│   ├── test_gemini_client.py
+│   ├── test_history_feedback_pdf.py
+│   ├── test_image_annotator.py
+│   ├── test_localization.py
+│   ├── test_media.py
+│   └── test_sse.py
+├── brain_of_the_doctor_gemini.py
+├── huggingface_vision.py
+├── main.py
+├── pyproject.toml
+├── README.md
+├── Skin_research_agents.py
+├── Skin_research_pipeline.py
+├── Skin_research_tools.py
+├── uv.lock
+├── voice_of_the_doctor.py
+└── voice_of_the_patient.py
 ```
 
-What was cleaned (logic-preserving):
+## Installation
 
-- **Dead code:** removed uncalled `_gemini_api_key()` helpers
-  (`brain_of_the_doctor_gemini.py`, `Skin_research_agents.py`,
-  `Skin_research_tools.py`), unreferenced `_read_int_env` / `_read_float_env`
-  aliases (`voice_of_the_doctor.py`, `voice_of_the_patient.py`, `common/env.py`),
-  and unused image-size aliases in `huggingface_vision.py` (truth lives in
-  `common/media.py`).
-- **Unused imports:** dropped `get_localized_disclaimer` from `main.py`'s import
-  (still available in `common/localization.py`), `Callable` from
-  `Skin_research_tools.py`, `Any`/`ConfigurationError` from
-  `Skin_research_agents.py`, `Tuple` from `common/image_annotator.py`; added the
-  missing `from typing import Any` in `main.py`.
-- **Simplified blocks:** unpacked the nested media-type ternary and RAG
-  join-comprehension (`Skin_research_pipeline.py`), the model-dedupe chain
-  (`Skin_research_tools.py`), the walrus upload loop, media-kind builder, chat
-  history-role mapping, and history summary copy (`main.py`), plus the JSON
-  row-mapping, user-ID sanitizer (`common/history_store.py`), PDF escaper
-  (`common/pdf_report.py`), and annotation filename branch
-  (`common/image_annotator.py`).
-- **Orphaned files:** none removed — `__pycache__/`, `.venv/`,
-  `.pytest_cache/`, `generated_audio/`, and `data/*.db` are gitignored runtime
-  artifacts, not source. Public-but-currently-unreferenced helpers
-  (`scrape_medical_url`, `prepare_vision_image`, `play_audio`,
-  `execute_with_key_rotation`, `resolve_media_image` /
-  `resolve_annotated_image`, `get_localized_disclaimer` /
-  `get_language_name`) were kept as documented module surface (the
-  localization helpers are exercised by `tests/test_localization.py`).
-- **Second import-only pass (AST-verified, zero logic change):** dropped
-  `ImageFont` (`common/image_annotator.py`, plus moved the misplaced
-  `Path` import into the import block), `is_quota_error` +
-  `HuggingFaceVisionError` (`Skin_research_tools.py`),
-  `DermatologyVectorStore` (`tests/test_dermatology_rag.py`), `os` +
-  function-level `io` (`tests/test_history_feedback_pdf.py`), `pytest` +
-  `SUPPORTED_LANGUAGES` (`tests/test_localization.py`) and `pytest`
-  (`tests/test_sse.py`). A post-edit AST rescan over all 30 Python
-  files reports no unused imports.
-
-Verify nothing changed behaviorally:
+**Requirements:** Python 3.11+.
 
 ```bash
-.\.venv\Scripts\python.exe -m pytest tests/ -q
-# 48 passed
+# 1. Clone and enter the project
+git clone <repo-url>
+cd ai-skin-specialist-main
+
+# 2. Create and activate a virtual environment
+python -m venv .venv
+.\.venv\Scripts\activate        # Windows
+# source .venv/bin/activate     # macOS / Linux
+
+# 3. Install dependencies
+pip install -e .
+# or: uv sync
+
+# 4. Add API keys to a local .env file (never commit this file)
+#    Required: GEMINI_API_KEY, DEEPGRAM_API_KEY, TAVILY_API_KEY, HF_API_KEY
+GEMINI_API_KEY=...
+DEEPGRAM_API_KEY=...
+TAVILY_API_KEY=...
+HF_API_KEY=...
+
+# 5. Start the server
+python main.py
+# Open http://127.0.0.1:8000
+
+# 6. Run tests (optional)
+python -m pytest tests/ -q
 ```
 
 ## Medical Disclaimer
