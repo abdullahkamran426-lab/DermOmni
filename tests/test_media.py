@@ -98,7 +98,10 @@ def _fake_rotation(return_value):
         state["client"] = client
         return operation(client)
 
-    _fake.mock_client = lambda: state["client"]
+    def _get_mock_client():
+        return state["client"]
+
+    _fake.mock_client = _get_mock_client
     return _fake
 
 
