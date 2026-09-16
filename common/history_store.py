@@ -53,6 +53,7 @@ from __future__ import annotations
 import json
 import os
 import sqlite3
+import tempfile
 import threading
 from datetime import datetime, timezone
 from pathlib import Path
@@ -106,6 +107,9 @@ def get_db_path() -> Path:
     override = os.getenv("HISTORY_DB_PATH", "").strip()
     if override:
         return Path(override).expanduser().resolve()
+    # Serverless (Vercel) filesystems are read-only outside the temp dir.
+    if os.environ.get("VERCEL"):
+        return Path(tempfile.gettempdir()) / "consultations.db"
     root = Path(__file__).resolve().parent.parent
     return root / "data" / "consultations.db"
 
