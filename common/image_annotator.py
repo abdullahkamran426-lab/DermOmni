@@ -18,9 +18,14 @@ from common.gemini import call_with_key_rotation, get_gemini_api_keys
 
 logger = logging.getLogger(__name__)
 
-# Absolute output dir — must match main.AUDIO_DIR which is served at /audio/.
-# (Previous relative "generated_audio" broke when CWD != repo root.)
-ANNOTATED_OUTPUT_DIR = str(_Path(__file__).resolve().parent.parent / "generated_audio")
+import tempfile
+
+if os.environ.get("VERCEL"):
+    ANNOTATED_OUTPUT_DIR = str(_Path(tempfile.gettempdir()) / "generated_audio")
+else:
+    ANNOTATED_OUTPUT_DIR = str(_Path(__file__).resolve().parent.parent / "generated_audio")
+_Path(ANNOTATED_OUTPUT_DIR).mkdir(parents=True, exist_ok=True)
+
 
 
 def detect_skin_lesion_regions(image_bytes: bytes, mime_type: str = "image/jpeg") -> List[Dict[str, Any]]:

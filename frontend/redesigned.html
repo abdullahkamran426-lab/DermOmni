@@ -659,7 +659,12 @@ tailwind.config = {
       const annotatedImg = document.getElementById('annotated-img');
       const annotatedCaption = document.getElementById('annotated-caption');
       if (payload.annotated_image_url) {
-        annotatedImg.src = new URL(payload.annotated_image_url, apiOrigin).href;
+        annotatedImg.onerror = (err) => {
+          console.error("Failed to load annotated image from URL:", annotatedImg.src, err);
+        };
+        annotatedImg.src = payload.annotated_image_url.startsWith('http')
+          ? payload.annotated_image_url
+          : new URL(payload.annotated_image_url, apiOrigin).href;
         const regions = payload.annotated_regions || [];
         annotatedCaption.textContent = regions.length
           ? `AI-detected regions (${regions.map((r) => `${r.label} — ${r.severity}`).join('; ')}). Visual reference only — not a diagnosis.`
@@ -851,7 +856,12 @@ tailwind.config = {
       const rImg = document.getElementById('research-annotated-img');
       const rCap = document.getElementById('research-annotated-caption');
       if (payload.annotated_image_url) {
-        rImg.src = new URL(payload.annotated_image_url, apiOrigin).href;
+        rImg.onerror = (err) => {
+          console.error("Failed to load research annotated image from URL:", rImg.src, err);
+        };
+        rImg.src = payload.annotated_image_url.startsWith('http')
+          ? payload.annotated_image_url
+          : new URL(payload.annotated_image_url, apiOrigin).href;
         const regions = payload.annotated_regions || [];
         rCap.textContent = regions.length
           ? `AI-detected: ${regions.map((r) => `${r.label} — ${r.severity}`).join('; ')}. Visual reference only — not a diagnosis.`
@@ -1094,7 +1104,10 @@ tailwind.config = {
     const figure = document.createElement("figure");
     figure.className = "max-w-[85%] rounded-2xl bg-paper2 border border-border p-2 shadow-sm";
     const img = document.createElement("img");
-    img.src = imageUrl;
+    img.onerror = (err) => {
+      console.error("Failed to load chat thread image from URL:", img.src, err);
+    };
+    img.src = imageUrl.startsWith('http') ? imageUrl : new URL(imageUrl, apiOrigin).href;
     img.alt = "Annotated skin image with lesion callouts";
     img.className = "w-full rounded-xl border border-border";
     img.loading = "lazy";

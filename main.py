@@ -50,9 +50,12 @@ logger = logging.getLogger(__name__)
 
 ROOT_DIR = Path(__file__).resolve().parent
 FRONTEND_FILE = ROOT_DIR / "frontend" / "redesigned.html"
-# Temporary fix for Vercel: serverless functions can only write inside /tmp.
-AUDIO_DIR = Path("/tmp/generated_audio")
+if os.environ.get("VERCEL"):
+    AUDIO_DIR = Path(tempfile.gettempdir()) / "generated_audio"
+else:
+    AUDIO_DIR = ROOT_DIR / "generated_audio"
 AUDIO_DIR.mkdir(parents=True, exist_ok=True)
+
 
 # Consultation-history / feedback store (SQLite, WAL). Created lazily so
 # importing the app in tests never fails on a read-only FS.
@@ -348,6 +351,7 @@ async def research(
                     )
                     if anno_res.get("annotated_image_url"):
                         result["annotated_image_url"] = anno_res["annotated_image_url"]
+                        result["annotated_image_path"] = str(Path(anno_res["file_path"]).resolve()) if anno_res.get("file_path") else ""
                         result["annotated_regions"] = anno_res.get("regions", [])
                         if anno_res.get("file_path"):
                             result["_annotated_file_path"] = anno_res["file_path"]
@@ -712,9 +716,8 @@ def _run_analysis(
     }
     if annotated_image_url:
         res["annotated_image_url"] = annotated_image_url
+        res["annotated_image_path"] = str(Path(annotated_file_path).resolve()) if annotated_file_path else ""
         res["annotated_regions"] = annotated_regions
-        # Internal absolute path — consumed by _save_consultation_record to
-        # persist annotated_image_path, then stripped before responding.
         if annotated_file_path:
             res["_annotated_file_path"] = annotated_file_path
     return res
