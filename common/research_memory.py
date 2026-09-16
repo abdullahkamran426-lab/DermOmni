@@ -28,6 +28,7 @@ import json
 import logging
 import os
 import threading
+import urllib.request
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -48,6 +49,26 @@ def _memory_dir() -> Path:
 
 def _backend() -> str:
     return os.getenv("RESEARCH_MEMORY_BACKEND", "auto").strip().lower() or "auto"
+
+
+def _upstash_config() -> tuple[str, str]:
+    url = os.getenv("UPSTASH_VECTOR_REST_URL", "").strip()
+    token = os.getenv("UPSTASH_VECTOR_REST_TOKEN", "").strip()
+    return url, token
+
+
+def _upstash_request(url: str, token: str, endpoint: str, payload: Any) -> dict:
+    req = urllib.request.Request(
+        f"{url.rstrip('/')}/{endpoint.lstrip('/')}",
+        data=json.dumps(payload).encode("utf-8"),
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+    with urllib.request.urlopen(req, timeout=5.0) as resp:
+        return json.loads(resp.read().decode("utf-8"))
 
 
 def _utcnow() -> str:
@@ -82,6 +103,7 @@ class ResearchMemory:
         self.backend = (backend or _backend())
         self._lock = threading.Lock()
         self._chroma_collection = None
+        self._use_upstash = False
         self._jsonl_records: list[dict[str, Any]] = []
         self._engine = None  # lazy TF-IDF engine over the JSONL records
         self._engine_size = -1
@@ -94,6 +116,16 @@ class ResearchMemory:
         except OSError as exc:
             logger.warning("Research memory dir unavailable (%s); memory disabled.", exc)
             return
+
+        url, token = _upstash_config()
+        if (self.backend == "upstash" or (self.backend == "auto" and url and token)):
+            if url and token:
+                logger.info("Research memory: persistent free Upstash Vector cloud DB ready.")
+                self._use_upstash = True
+                return
+            else:
+                logger.warning("Upstash Vector env vars missing; falling back.")
+
         if self.backend in ("auto", "chroma"):
             try:
                 # pyrefly: ignore [missing-import]
@@ -147,7 +179,10 @@ class ResearchMemory:
         base_id = (consultation_id or "").strip() or uuid.uuid4().hex
         with self._lock:
             try:
-                if self._chroma_collection is not None:
+                url, token = _upstash_config()
+                if (getattr(self, "_use_upstash", False) or self.backend == "upstash" or (self.backend == "auto" and url and token)) and url and token:
+                    self._save_upstash(url, token, user_id, query, chunks, evidence_level, created_at, base_id)
+                elif self._chroma_collection is not None:
                     self._save_chroma(user_id, query, chunks, evidence_level, created_at, base_id)
                 else:
                     self._save_jsonl(user_id, query, chunks, evidence_level, created_at, base_id)
@@ -155,6 +190,24 @@ class ResearchMemory:
                 logger.warning("Research memory save failed: %s", exc)
                 return 0
         return len(chunks)
+
+    def _save_upstash(self, url: str, token: str, user_id: str, query: str, chunks: list[str], evidence_level: str, created_at: str, base_id: str) -> None:
+        query_note = (query or "").strip()[:200]
+        payload = [
+            {
+                "id": f"{base_id}:{i}",
+                "data": chunk,
+                "metadata": {
+                    "user_id": user_id,
+                    "query": query_note,
+                    "evidence_level": evidence_level or "unknown",
+                    "created_at": created_at,
+                    "content": chunk,
+                },
+            }
+            for i, chunk in enumerate(chunks)
+        ]
+        _upstash_request(url, token, "upsert", payload)
 
     def _save_chroma(self, user_id, query, chunks, evidence_level, created_at, base_id) -> None:
         ids = [f"{base_id}:{i}" for i in range(len(chunks))]
@@ -217,12 +270,40 @@ class ResearchMemory:
             return []
         with self._lock:
             try:
-                if self._chroma_collection is not None:
+                url, token = _upstash_config()
+                if (getattr(self, "_use_upstash", False) or self.backend == "upstash" or (self.backend == "auto" and url and token)) and url and token:
+                    return self._query_upstash(url, token, user_id, query_text, top_k)
+                elif self._chroma_collection is not None:
                     return self._query_chroma(user_id, query_text, top_k)
                 return self._query_jsonl(user_id, query_text, top_k)
             except Exception as exc:
                 logger.warning("Research memory query failed: %s", exc)
                 return []
+
+    def _query_upstash(self, url: str, token: str, user_id: str, query_text: str, top_k: int) -> list[dict[str, Any]]:
+        sanitized_user = user_id.replace("'", "")
+        payload = {
+            "data": query_text,
+            "topK": top_k,
+            "filter": f"user_id = '{sanitized_user}'",
+            "includeMetadata": True,
+            "includeData": True,
+        }
+        res = _upstash_request(url, token, "query", payload)
+        matches = res.get("result") or []
+        hits = []
+        for item in matches:
+            meta = item.get("metadata") or {}
+            content = item.get("data") or meta.get("content") or ""
+            hits.append(
+                {
+                    "content": content,
+                    "query": meta.get("query", ""),
+                    "evidence_level": meta.get("evidence_level", "unknown"),
+                    "created_at": meta.get("created_at", ""),
+                }
+            )
+        return hits
 
     def _query_chroma(self, user_id: str, query_text: str, top_k: int) -> list[dict[str, Any]]:
         res = self._chroma_collection.query(
