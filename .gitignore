@@ -6,3 +6,5 @@ generated_audio/
 *.mp3
 *.wav
 *.webm
+
+data/
