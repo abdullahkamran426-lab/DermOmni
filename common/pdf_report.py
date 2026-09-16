@@ -153,14 +153,14 @@ def _find_annotated_image(record: dict) -> Path | None:
     return None
 
 
-def _scaled_photo_flowable(path: Path):
-    """Build a aspect-preserved ReportLab Image flowable, or None on failure."""
+def _scaled_photo_flowable(path: Path, max_w: float = _PHOTO_MAX_W, max_h: float = _PHOTO_MAX_H):
+    """Build an aspect-preserved ReportLab Image flowable, or None on failure."""
     try:
         reader = ImageReader(str(path))
         iw, ih = reader.getSize()
         if not iw or not ih:
             return None
-        scale = min(_PHOTO_MAX_W / iw, _PHOTO_MAX_H / ih, 1.0)
+        scale = min(max_w / iw, max_h / ih, 1.0)
         return RLImage(str(path), width=iw * scale, height=ih * scale)
     except Exception:
         return None
@@ -243,27 +243,54 @@ def build_consultation_pdf(record: dict) -> bytes:
         escaped = escaped.replace("\n", "<br/>")
         return escaped
 
-    # Uploaded patient photo (archived still image for this session).
+    # Images: Side-by-Side Comparison when both original & annotated images exist.
     photo_path = _find_embeddable_image(record)
-    if photo_path is not None:
-        photo = _scaled_photo_flowable(photo_path)
-        if photo is not None:
+    annotated_path = _find_annotated_image(record)
+
+    side_photo = _scaled_photo_flowable(photo_path, max_w=82 * mm, max_h=65 * mm) if photo_path else None
+    side_annotated = _scaled_photo_flowable(annotated_path, max_w=82 * mm, max_h=65 * mm) if annotated_path else None
+
+    if side_photo is not None and side_annotated is not None:
+        story.append(Paragraph("Visual Analysis Comparison (Original vs Annotated)", styles["h2"]))
+        comp_table = Table(
+            [
+                [side_photo, side_annotated],
+                [
+                    Paragraph("<b>Original Patient Photo</b><br/><font color=\"#5B655F\">Uploaded image</font>", styles["callout"]),
+                    Paragraph("<b>AI Lesion Overlay</b><br/><font color=\"#5B655F\">Green = Mild, Amber = Moderate, Red = Severe</font>", styles["callout"]),
+                ],
+            ],
+            colWidths=[85 * mm, 85 * mm],
+        )
+        comp_table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, -1), SAGE_SOFT),
+            ("BOX", (0, 0), (-1, -1), 0.5, BORDER),
+            ("INNERGRID", (0, 0), (-1, -1), 0.5, BORDER),
+            ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("LEFTPADDING", (0, 0), (-1, -1), 4),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+            ("TOPPADDING", (0, 0), (-1, -1), 4),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ]))
+        story.append(comp_table)
+        story.append(Spacer(1, 6))
+    elif photo_path is not None:
+        full_photo = _scaled_photo_flowable(photo_path, max_w=_PHOTO_MAX_W, max_h=_PHOTO_MAX_H)
+        if full_photo is not None:
             story.append(Paragraph("Uploaded photo", styles["h2"]))
-            story.append(photo)
+            story.append(full_photo)
             story.append(Paragraph(
                 "Photo provided by the patient at consultation time. "
                 "Video/audio are never stored; only this still image is archived.",
                 styles["muted"],
             ))
             story.append(Spacer(1, 4))
-
-    # Lesion-overlay annotation (Gemini bounding boxes + Pillow callouts).
-    annotated_path = _find_annotated_image(record)
-    if annotated_path is not None:
-        annotated_photo = _scaled_photo_flowable(annotated_path)
-        if annotated_photo is not None:
+    elif annotated_path is not None:
+        full_anno = _scaled_photo_flowable(annotated_path, max_w=_PHOTO_MAX_W, max_h=_PHOTO_MAX_H)
+        if full_anno is not None:
             story.append(Paragraph("Annotated analysis overlay", styles["h2"]))
-            story.append(annotated_photo)
+            story.append(full_anno)
             story.append(Paragraph(
                 "AI-generated lesion callouts and risk highlights "
                 "(green = mild, amber = moderate, red = severe). "
